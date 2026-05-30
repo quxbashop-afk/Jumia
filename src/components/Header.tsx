@@ -151,9 +151,9 @@ export default function Header({
   return (
     <header className="sticky top-0 z-40 bg-white border-b shadow-sm" id="quxba-header">
       {/* Call to Order/Promotional Banner */}
-      <div className="bg-[#7c3aed] text-white py-1.5 px-4 text-center text-xs font-semibold tracking-wide flex justify-center items-center overflow-hidden">
-        <div>
-          CALL TO ORDER: 01 888 1106 | FREE DELIVERY ON QUXBA EXPRESS ITEMS OVER ₦15,000
+      <div className="bg-[#7c3aed] text-white py-1.5 px-4 text-center text-xs font-bold tracking-wider flex justify-center items-center overflow-hidden">
+        <div className="uppercase">
+          DELIVERY ONLY IN LAGOS FOR NOW
         </div>
       </div>
 

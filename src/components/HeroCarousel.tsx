@@ -16,6 +16,7 @@ export default function HeroCarousel({ onSelectCategory }: HeroCarouselProps) {
       buttonText: 'SHOP THE SALE',
       badge: 'ANNIVERSARY CELEBRATION',
       image: '/src/assets/images/jumia_anniversary_hero_1779974244611.png',
+      videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-girl-in-sunglasses-and-a-blue-headscarf-40186-large.mp4',
       bgColor: 'from-purple-700 via-violet-500 to-fuchsia-400',
       action: () => onSelectCategory('Electronics & Appliances')
     },
@@ -88,12 +89,23 @@ export default function HeroCarousel({ onSelectCategory }: HeroCarouselProps) {
 
             {/* Slide Banner Graphics or Woman walking through port image */}
             <div className="w-full md:w-[55%] relative select-none overflow-hidden bg-purple-50 min-h-[140px] md:min-h-0">
-              <img
-                src={slide.image}
-                alt={slide.title}
-                className="w-full h-full object-cover object-center"
-                referrerPolicy="no-referrer"
-              />
+              {slide.videoUrl ? (
+                <video
+                  src={slide.videoUrl}
+                  className="w-full h-full object-cover object-center"
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                />
+              ) : (
+                <img
+                  src={slide.image}
+                  alt={slide.title}
+                  className="w-full h-full object-cover object-center"
+                  referrerPolicy="no-referrer"
+                />
+              )}
               <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/40 via-transparent to-transparent h-20 md:hidden" />
             </div>
           </div>
