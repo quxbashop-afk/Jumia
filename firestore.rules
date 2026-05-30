@@ -86,14 +86,22 @@ service cloud.firestore {
       // Anyone can read products count and list
       allow get, list: if true;
 
-      // Only administrators or verified email-approved sellers can create/update products.
-      // Let's enforce that only verified administrative support or emails matching our boot admin quxbashop can write products.
-      allow create: if isValidId(productId) && isAdmin() && isValidProduct(incoming()) && (incoming().createdAt == request.time);
-      allow update: if isValidId(productId) && isAdmin() && isValidProduct(incoming()) && (
-        // Permit updating product stock index, parameters
-        incoming().diff(existing()).affectedKeys().hasOnly(['name', 'price', 'originalPrice', 'discount', 'stock', 'description', 'imageUrl', 'isApproved'])
+      // Only administrators can create or approve products arbitrary; sellers can submit unapproved products.
+      allow create: if isValidId(productId) && isValidProduct(incoming()) && (incoming().createdAt is number) && (
+        isAdmin() || (isSignedIn() && incoming().isApproved == false)
       );
-      allow delete: if isValidId(productId) && isAdmin();
+
+      allow update: if isValidId(productId) && isValidProduct(incoming()) && (
+        isAdmin() || (
+          isSignedIn() && 
+          existing().sellerId == request.auth.uid && 
+          incoming().sellerId == existing().sellerId &&
+          incoming().isApproved == existing().isApproved && 
+          incoming().diff(existing()).affectedKeys().hasOnly(['name', 'price', 'originalPrice', 'discount', 'stock', 'description', 'imageUrl'])
+        )
+      );
+
+      allow delete: if isValidId(productId) && (isAdmin() || (isSignedIn() && existing().sellerId == request.auth.uid));
     }
 
     // --- Orders Collection ---

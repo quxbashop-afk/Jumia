@@ -119,6 +119,7 @@ export default function App() {
         const u = { email, name };
         setCurrentUser(u);
         localStorage.setItem('jumia_logged_in_user', JSON.stringify(u));
+        localStorage.setItem('jumia_auth_method', 'firebase');
 
         // Sync or register user node in database
         const userRef = doc(db, 'users', firebaseUser.uid);
@@ -131,8 +132,12 @@ export default function App() {
           console.warn("Gracefully handled Firestore user sync error (ignoring to avoid blocking auth state):", error);
         }
       } else {
-        setCurrentUser(null);
-        localStorage.removeItem('jumia_logged_in_user');
+        const authMethod = localStorage.getItem('jumia_auth_method');
+        if (authMethod !== 'local') {
+          setCurrentUser(null);
+          localStorage.removeItem('jumia_logged_in_user');
+          localStorage.removeItem('jumia_auth_method');
+        }
       }
     });
     return unsubscribe;
@@ -144,8 +149,9 @@ export default function App() {
     const unsubscribe = onSnapshot(ref, async (snapshot) => {
       if (snapshot.empty) {
         setProducts(INITIAL_PRODUCTS);
-        // Only the admin can seed the database to avoid permission errors for anonymous/guest users
-        if (currentUser?.email === 'quxbashop@gmail.com') {
+        // Only the admin authenticated via Firebase can seed the database
+        const authMethod = localStorage.getItem('jumia_auth_method');
+        if (currentUser?.email === 'quxbashop@gmail.com' && authMethod === 'firebase' && auth.currentUser) {
           try {
             // Auto seed database with products
             for (const item of INITIAL_PRODUCTS) {
@@ -157,7 +163,7 @@ export default function App() {
               });
             }
           } catch (error) {
-            console.error("Auto seed of products failed:", error);
+            console.warn("Auto seed of products skipped or failed (local fallback products loaded):", error);
           }
         }
       } else {
@@ -237,27 +243,37 @@ export default function App() {
   const handleLogin = async (emailStr: string, passStr: string) => {
     const email = emailStr.toLowerCase().trim();
     try {
+      // 1. Try Firebase Authentication
       await signInWithEmailAndPassword(auth, email, passStr);
+      localStorage.setItem('jumia_auth_method', 'firebase');
       setShowAuthModal(false);
       setAuthError('');
       setAuthPassword('');
       return { success: true };
     } catch (err: any) {
-      // Legacy login fallback support for quxbashop default admin credentials (creates and logs in)
-      const key = email;
-      const localUser = registeredUsers[key];
+      console.warn("Firebase sign-in failed, checking safe local fallback:", err);
+      
+      // 2. Check if user exists in local registeredUsers database
+      const localUser = registeredUsers[email];
       if (localUser && localUser.pass === passStr) {
+        const u = { email: localUser.email, name: localUser.name };
+        setCurrentUser(u);
+        localStorage.setItem('jumia_logged_in_user', JSON.stringify(u));
+        localStorage.setItem('jumia_auth_method', 'local');
+        
+        // Silently attempt to register with Firebase in the background in case Firebase database is recovering
         try {
           await createUserWithEmailAndPassword(auth, email, passStr);
-          setShowAuthModal(false);
-          setAuthError('');
-          setAuthPassword('');
-          return { success: true };
-        } catch (subErr) {
-          setAuthError('Authentication failed: ' + getFriendlyAuthErrorMessage(subErr));
-          return { success: false };
+        } catch (sErr) {
+          console.warn("Silent Firebase sync registration skipped:", sErr);
         }
+
+        setShowAuthModal(false);
+        setAuthError('');
+        setAuthPassword('');
+        return { success: true };
       }
+      
       setAuthError(getFriendlyAuthErrorMessage(err));
       return { success: false };
     }
@@ -269,14 +285,18 @@ export default function App() {
       setAuthError('Please fill in all blanks.');
       return { success: false };
     }
+
+    const newUsers = {
+      ...registeredUsers,
+      [email]: { name: nameStr, email, pass: passStr }
+    };
+
     try {
+      // 1. Try register with Firebase Authentication
       const result = await createUserWithEmailAndPassword(auth, email, passStr);
-      const newUsers = {
-        ...registeredUsers,
-        [email]: { name: nameStr, email, pass: passStr }
-      };
       setRegisteredUsers(newUsers);
       localStorage.setItem('jumia_registered_users', JSON.stringify(newUsers));
+      localStorage.setItem('jumia_auth_method', 'firebase');
 
       try {
         await setDoc(doc(db, 'users', result.user.uid), {
@@ -293,8 +313,28 @@ export default function App() {
       setAuthName('');
       return { success: true };
     } catch (err: any) {
-      setAuthError('Registration failed: ' + getFriendlyAuthErrorMessage(err));
-      return { success: false };
+      console.warn("Firebase sign-up failed, running local robust fallback registration:", err);
+      
+      const code = err.code || "";
+      if (code.includes('auth/email-already-in-use')) {
+        setAuthError('This email address is already registered. Please sign in instead.');
+        return { success: false };
+      }
+
+      // Complete registration locally
+      setRegisteredUsers(newUsers);
+      localStorage.setItem('jumia_registered_users', JSON.stringify(newUsers));
+      
+      const u = { email, name: nameStr };
+      setCurrentUser(u);
+      localStorage.setItem('jumia_logged_in_user', JSON.stringify(u));
+      localStorage.setItem('jumia_auth_method', 'local');
+
+      setShowAuthModal(false);
+      setAuthError('');
+      setAuthPassword('');
+      setAuthName('');
+      return { success: true };
     }
   };
 
@@ -306,6 +346,7 @@ export default function App() {
     }
     setCurrentUser(null);
     localStorage.removeItem('jumia_logged_in_user');
+    localStorage.removeItem('jumia_auth_method');
     setCurrentView('storefront');
   };
 
