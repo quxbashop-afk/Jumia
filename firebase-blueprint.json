@@ -1,0 +1,69 @@
+{
+  "entities": {
+    "Product": {
+      "title": "Product",
+      "description": "An ecommerce product available on the platform",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "price": { "type": "number" },
+        "originalPrice": { "type": "number" },
+        "discount": { "type": "number" },
+        "imageUrl": { "type": "string" },
+        "rating": { "type": "number" },
+        "reviewsCount": { "type": "number" },
+        "description": { "type": "string" },
+        "stock": { "type": "number" },
+        "sellerId": { "type": "string" },
+        "sellerName": { "type": "string" },
+        "isFlashSale": { "type": "boolean" },
+        "isApproved": { "type": "boolean" },
+        "brand": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["id", "name", "category", "price", "originalPrice", "discount", "imageUrl", "rating", "reviewsCount", "description", "stock", "sellerId", "sellerName"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "A customer e-commerce order",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string" },
+        "totalPrice": { "type": "number" },
+        "status": { "type": "string" },
+        "deliveryAddress": { "type": "string" },
+        "paymentMethod": { "type": "string" },
+        "expectedDelivery": { "type": "string" },
+        "customerEmail": { "type": "string" }
+      },
+      "required": ["id", "date", "totalPrice", "status", "deliveryAddress", "paymentMethod", "expectedDelivery", "customerEmail"]
+    },
+    "User": {
+      "title": "User",
+      "description": "User profile with contact information",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "name": { "type": "string" }
+      },
+      "required": ["email", "name"]
+    }
+  },
+  "firestore": {
+    "products/{productId}": {
+      "schema": "Product",
+      "description": "The products collection"
+    },
+    "orders/{orderId}": {
+      "schema": "Order",
+      "description": "The customer orders collection"
+    },
+    "users/{userId}": {
+      "schema": "User",
+      "description": "User profile records by auth uid"
+    }
+  }
+}

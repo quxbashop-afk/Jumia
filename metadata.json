@@ -1,0 +1,10 @@
+{
+  "name": "Quxba E-Commerce Platform",
+  "description": "A vibrant Quxba-styled African e-commerce marketplace featuring top-deals, flash sales, search suggestions, interactive cart, wishlist, and user accounts in Nigerian Naira.",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
