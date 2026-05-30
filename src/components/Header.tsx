@@ -40,6 +40,7 @@ export default function Header({
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [showAccountMenu, setShowAccountMenu] = useState(false);
   const suggestionsRef = useRef<HTMLDivElement>(null);
+  const mobileSuggestionsRef = useRef<HTMLDivElement>(null);
   const accountRef = useRef<HTMLDivElement>(null);
 
   const [activeIndex, setActiveIndex] = useState<number>(-1);
@@ -118,7 +119,10 @@ export default function Header({
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (suggestionsRef.current && !suggestionsRef.current.contains(event.target as Node)) {
+      const clickedOutsideDesktop = !suggestionsRef.current || !suggestionsRef.current.contains(event.target as Node);
+      const clickedOutsideMobile = !mobileSuggestionsRef.current || !mobileSuggestionsRef.current.contains(event.target as Node);
+      
+      if (clickedOutsideDesktop && clickedOutsideMobile) {
         setShowSuggestions(false);
       }
       if (accountRef.current && !accountRef.current.contains(event.target as Node)) {
@@ -157,21 +161,74 @@ export default function Header({
       <div className="max-w-7xl mx-auto px-4 md:px-8 py-3 flex flex-col md:flex-row items-center justify-between gap-4">
         
         {/* Logo Section */}
-        <div className="flex items-center justify-between w-full md:w-auto gap-4">
+        <div className="flex items-center justify-between w-full md:w-auto gap-2 md:gap-4">
           <div 
             onClick={() => { onToggleView('storefront'); onSelectCategory('All Categories'); setSearchQuery(''); }}
-            className="cursor-pointer flex items-center gap-2"
+            className="cursor-pointer flex-shrink-0 flex items-center gap-2"
           >
             <img 
               src={quxbaLogo} 
               alt="Quxba Logo" 
-              className="h-10 md:h-12 w-auto object-contain transition-transform hover:scale-105"
+              className="h-8 sm:h-10 md:h-12 w-auto object-contain transition-transform hover:scale-105"
               referrerPolicy="no-referrer"
             />
           </div>
 
+          {/* Mobile Search Engine Form (Visible ONLY on mobile, placed between Logo and Wishlist/Cart) */}
+          <div className="relative flex-1 md:hidden max-w-[200px] xs:max-w-xs sm:max-w-md mx-1 sm:mx-2" ref={mobileSuggestionsRef}>
+            <form onSubmit={handleSearchSubmit} className="flex w-full items-center relative">
+              <div className="relative w-full">
+                <input
+                  type="text"
+                  placeholder="Search..."
+                  value={searchQuery}
+                  aria-label="Search on Quxba"
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setShowSuggestions(true);
+                  }}
+                  onFocus={() => setShowSuggestions(true)}
+                  className="w-full pl-7 pr-10 py-1.5 border border-gray-300 rounded text-xs text-gray-900 outline-none transition focus:border-[#7c3aed]"
+                />
+                <Search className="absolute left-2 top-2 w-[14px] h-[14px] text-gray-400" />
+              </div>
+              <button 
+                type="submit" 
+                className="absolute right-0 top-0 h-full bg-[#7c3aed] hover:bg-[#6d28d9] text-white px-2.5 rounded-r font-bold text-xs shadow-inner transition duration-150"
+              >
+                Go
+              </button>
+            </form>
+
+            {/* Mobile Search dynamic suggestions */}
+            {showSuggestions && suggestions.length > 0 && (
+              <div className="absolute top-full left-0 right-0 bg-white mt-1.5 border border-gray-200 rounded shadow-xl z-50 overflow-hidden divide-y divide-gray-100 min-w-[200px]">
+                {suggestions.map((p) => (
+                  <div 
+                    key={p.id}
+                    onClick={() => handleSuggestionClick(p)}
+                    className="px-2.5 py-2 cursor-pointer flex items-center gap-2 hover:bg-purple-50 transition"
+                  >
+                    <img 
+                      src={p.imageUrl} 
+                      alt={p.name} 
+                      className="w-7 h-7 object-contain rounded border border-gray-100 bg-gray-50 flex-shrink-0"
+                      referrerPolicy="no-referrer"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-gray-800 truncate">{p.name}</p>
+                      <p className="text-[10px] text-gray-500 truncate">
+                        ₦{p.price.toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           {/* Quick Stats or Applet State info on small screens if helpful, but keep margin clutter clean */}
-          <div className="flex items-center md:hidden gap-3">
+          <div className="flex items-center md:hidden gap-1.5 sm:gap-3 flex-shrink-0">
             <button 
               onClick={onOpenWishlist}
               className="relative p-2 text-gray-700 hover:text-[#7c3aed]"
@@ -200,7 +257,7 @@ export default function Header({
         </div>
 
         {/* Search Engine Form */}
-        <div className="relative w-full md:max-w-2xl flex-1" ref={suggestionsRef}>
+        <div className="hidden md:block relative w-full md:max-w-2xl flex-1" ref={suggestionsRef}>
           <form onSubmit={handleSearchSubmit} className="flex w-full items-center relative">
             <div className="relative w-full">
               <input

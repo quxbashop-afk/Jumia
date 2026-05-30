@@ -23,7 +23,8 @@ import { Product, CartItem, Order, UserAccount } from './types';
 import { 
   Zap, Flame, Percent, RefreshCcw, Landmark, Award, ShieldCheck, HelpCircle, Smartphone, ArrowRight,
   ListFilter, SlidersHorizontal, RotateCcw, X, ChevronDown, ChevronRight, Grid, List,
-  Home, ShoppingCart, Heart, User, ShieldAlert, KeyRound, Mail, UserPlus, Info, ShoppingBag
+  Home, ShoppingCart, Heart, User, ShieldAlert, KeyRound, Mail, UserPlus, Info, ShoppingBag,
+  Eye, EyeOff, Loader2
 } from 'lucide-react';
 
 // Firebase Integrations
@@ -381,6 +382,53 @@ export default function App() {
   const [isWishlistOpen, setIsWishlistOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
+  const [comparisonList, setComparisonList] = useState<Product[]>([]);
+  const [showPassword, setShowPassword] = useState(false);
+  const [isAuthSubmitting, setIsAuthSubmitting] = useState(false);
+
+  const handleToggleComparison = (product: Product) => {
+    setComparisonList((prev) => {
+      const exists = prev.some((p) => p.id === product.id);
+      if (exists) {
+        return prev.filter((p) => p.id !== product.id);
+      } else {
+        if (prev.length >= 4) {
+          return [...prev.slice(1), product];
+        }
+        return [...prev, product];
+      }
+    });
+  };
+
+  const handleAddReview = async (productId: string, rating: number, comment: string, userName: string) => {
+    const prod = products.find(p => p.id === productId);
+    if (!prod) return;
+
+    const newReview = {
+      id: Math.random().toString(36).substring(2, 9),
+      userName,
+      rating,
+      comment,
+      date: new Date().toLocaleDateString('en-NG')
+    };
+
+    const oldReviews = prod.reviews || [];
+    const updatedReviews = [...oldReviews, newReview];
+
+    const totalRating = updatedReviews.reduce((sum, r) => sum + r.rating, 0);
+    const newAvgRating = parseFloat((totalRating / updatedReviews.length).toFixed(1));
+
+    try {
+      await updateDoc(doc(db, 'products', productId), {
+        reviews: updatedReviews,
+        rating: newAvgRating,
+        reviewsCount: updatedReviews.length
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `products/${productId}`);
+    }
+  };
+
   // Sync state back to local storage
   useEffect(() => {
     localStorage.setItem('jumia_user_cart', JSON.stringify(cart));
@@ -452,6 +500,7 @@ export default function App() {
     };
     try {
       await setDoc(doc(db, 'orders', newOrder.id), orderWithEmail);
+      console.log(`[Mock Email Notification Service] SUCCESS: Simulating email delivery... Order confirmation successfully generated & sent to customer inbox at ${orderWithEmail.customerEmail} for order ID: ${newOrder.id}`);
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, `orders/${newOrder.id}`);
     }
@@ -1099,6 +1148,8 @@ export default function App() {
                                   onAddToCart={handleAddToCart}
                                   onToggleWishlist={handleToggleWishlist}
                                   onClick={(prod) => setSelectedProduct(prod)}
+                                  onAddToCompare={handleToggleComparison}
+                                  isInComparisonList={comparisonList.some((compProd) => compProd.id === p.id)}
                                 />
                               ))}
                             </div>
@@ -1159,6 +1210,8 @@ export default function App() {
                                         onAddToCart={handleAddToCart}
                                         onToggleWishlist={handleToggleWishlist}
                                         onClick={(prod) => setSelectedProduct(prod)}
+                                        onAddToCompare={handleToggleComparison}
+                                        isInComparisonList={comparisonList.some((compProd) => compProd.id === p.id)}
                                       />
                                     ))}
                                   </div>
@@ -1334,11 +1387,13 @@ export default function App() {
       />
 
       <ProductDetailModal
-        product={selectedProduct}
+        product={selectedProduct ? products.find(p => p.id === selectedProduct.id) || selectedProduct : null}
         onClose={() => setSelectedProduct(null)}
         onAddToCart={handleAddToCart}
         onToggleWishlist={handleToggleWishlist}
         isInWishlist={wishlist.some(w => w.id === selectedProduct?.id)}
+        onAddReview={handleAddReview}
+        currentUser={currentUser}
       />
 
       {/* Jumia Style Floating Mobile Capsule (Sort by ⇅ | Filter ☰) */}
@@ -1760,12 +1815,19 @@ export default function App() {
 
               {/* Input Form Fields */}
               <form 
-                onSubmit={(e) => {
+                onSubmit={async (e) => {
                   e.preventDefault();
-                  if (authMode === 'signin') {
-                    handleLogin(authEmail, authPassword);
-                  } else {
-                    handleRegister(authName, authEmail, authPassword);
+                  setIsAuthSubmitting(true);
+                  try {
+                    if (authMode === 'signin') {
+                      await handleLogin(authEmail, authPassword);
+                    } else {
+                      await handleRegister(authName, authEmail, authPassword);
+                    }
+                  } catch (err) {
+                    console.error("Auth submission error:", err);
+                  } finally {
+                    setIsAuthSubmitting(false);
                   }
                 }}
                 className="space-y-3 text-left"
@@ -1813,21 +1875,30 @@ export default function App() {
                       <KeyRound className="w-4 h-4" />
                     </span>
                     <input
-                      type="password"
+                      type={showPassword ? "text" : "password"}
                       placeholder="••••••••••••"
                       value={authPassword}
                       onChange={(e) => setAuthPassword(e.target.value)}
-                      className="w-full bg-slate-50 border border-gray-200 rounded-lg pl-9 pr-3.5 py-2 text-xs focus:ring-1 focus:ring-brand-primary font-bold focus:outline-none"
+                      className="w-full bg-slate-50 border border-gray-200 rounded-lg pl-9 pr-10 py-2 text-xs focus:ring-1 focus:ring-brand-primary font-bold focus:outline-none"
                       required
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 focus:outline-none"
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
                   </div>
                 </div>
 
                 <button
                   type="submit"
-                  className="w-full bg-[#7c3aed] hover:bg-[#6d28d9] text-white py-2.5 rounded-lg text-xs font-black tracking-wider transition uppercase shadow-sm mt-5 cursor-pointer"
+                  disabled={isAuthSubmitting}
+                  className="w-full bg-[#7c3aed] hover:bg-[#6d28d9] disabled:bg-purple-350 text-white py-2.5 rounded-lg text-xs font-black tracking-wider transition uppercase shadow-sm mt-5 cursor-pointer flex items-center justify-center gap-2"
                 >
-                  {authMode === 'signin' ? 'LOGIN ACCOUNT' : 'REGISTER NEW ACCOUNT'}
+                  {isAuthSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
+                  <span>{authMode === 'signin' ? 'LOGIN ACCOUNT' : 'REGISTER NEW ACCOUNT'}</span>
                 </button>
               </form>
 
@@ -1846,6 +1917,96 @@ export default function App() {
                 <span>Continue with Google</span>
               </button>
 
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Product Comparison Drawer at the bottom */}
+      {comparisonList.length > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-purple-200 shadow-[0_-10px_25px_rgba(0,0,0,0.1)] p-4 max-h-[40vh] overflow-y-auto">
+          <div className="max-w-7xl mx-auto font-sans">
+            <div className="flex items-center justify-between mb-3 pb-2 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <span className="bg-[#7c3aed] text-white text-xs font-black px-2 py-0.5 rounded-full">
+                  {comparisonList.length}
+                </span>
+                <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider">Product Comparison</h3>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setComparisonList([])}
+                  className="text-[10px] text-red-500 hover:text-red-700 font-extrabold uppercase tracking-wider transition underline cursor-pointer"
+                >
+                  Clear All
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setComparisonList([])}
+                  className="text-gray-400 hover:text-gray-600 font-bold p-1 hover:bg-gray-150 rounded-full cursor-pointer transition"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Grid structure of comparing fields */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {comparisonList.map((p) => (
+                <div key={p.id} className="relative bg-slate-50/50 p-2.5 rounded-lg border border-gray-150/50 flex flex-col justify-between text-xs space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => handleToggleComparison(p)}
+                    className="absolute top-1 right-1 text-gray-400 hover:text-gray-600 p-0.5 hover:bg-gray-200 rounded-full cursor-pointer transition"
+                    title="Remove item"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+
+                  <div className="flex items-center gap-2 pr-4">
+                    <img 
+                      src={p.imageUrl} 
+                      alt={p.name} 
+                      className="w-10 h-10 object-contain rounded bg-white border p-0.5 flex-shrink-0" 
+                      referrerPolicy="no-referrer"
+                    />
+                    <div className="min-w-0">
+                      <h4 className="font-bold text-gray-800 truncate text-[10px]">{p.name}</h4>
+                      <p className="text-[#7c3aed] font-black text-[10px]">₦{p.price.toLocaleString()}</p>
+                    </div>
+                  </div>
+
+                  <div className="border-t border-gray-150/40 pt-1.5 space-y-0.5 text-[9px]">
+                    <div className="flex justify-between">
+                      <span className="text-gray-400 font-bold uppercase text-[8px]">Category</span>
+                      <span className="font-bold text-gray-700 truncate max-w-[90px]">{p.category}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400 font-bold uppercase text-[8px]">Brand</span>
+                      <span className="font-bold text-gray-700 truncate max-w-[90px]">{p.brand || 'Quxba'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400 font-bold uppercase text-[8px]">Stock Status</span>
+                      <span className={`font-black uppercase text-[8px] ${p.stock < 5 ? 'text-red-650' : 'text-green-650'}`}>
+                        {p.stock < 5 ? `Low (${p.stock})` : 'In Stock'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400 font-bold uppercase text-[8px]">Rating</span>
+                      <span className="font-bold text-gray-700">★ {p.rating} ({p.reviewsCount})</span>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleAddToCart(p)}
+                    className="w-full bg-[#7c3aed] hover:bg-[#6d28d9] text-white py-1 rounded text-[9px] font-black uppercase tracking-wider transition duration-150 cursor-pointer"
+                  >
+                    Add to Cart
+                  </button>
+                </div>
+              ))}
             </div>
           </div>
         </div>

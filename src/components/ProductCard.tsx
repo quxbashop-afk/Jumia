@@ -8,6 +8,8 @@ interface ProductCardProps {
   onAddToCart: (p: Product) => void;
   onToggleWishlist: (p: Product) => void;
   onClick: (p: Product) => void;
+  onAddToCompare?: (p: Product) => void;
+  isInComparisonList?: boolean;
   key?: React.Key;
 }
 
@@ -16,7 +18,9 @@ export default function ProductCard({
   isInWishlist,
   onAddToCart,
   onToggleWishlist,
-  onClick
+  onClick,
+  onAddToCompare,
+  isInComparisonList
 }: ProductCardProps) {
   // Format price in Nigerian Naira
   const formatNaira = (amount: number) => {
@@ -98,16 +102,23 @@ export default function ProductCard({
       <div className="flex-1 flex flex-col justify-between">
         {/* Clickable Info Area */}
         <div className="cursor-pointer mb-2" onClick={() => onClick(product)}>
-          {/* Official Store Badge */}
-          {isOfficialStore ? (
-            <span className="inline-block bg-[#183a8f] text-white text-[9px] font-bold uppercase px-1.5 py-0.5 rounded mb-1 max-w-max">
-              Official Store
-            </span>
-          ) : (
-            <span className="inline-block bg-neutral-200 text-neutral-700 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded mb-1 max-w-max">
-              Verified Mall
-            </span>
-          )}
+          {/* Official Store / Verified Mall Badge */}
+          <div className="flex flex-wrap gap-1 items-center mb-1">
+            {isOfficialStore ? (
+              <span className="inline-block bg-[#183a8f] text-white text-[9px] font-bold uppercase px-1.5 py-0.5 rounded max-w-max">
+                Official Store
+              </span>
+            ) : (
+              <span className="inline-block bg-neutral-200 text-neutral-700 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded max-w-max">
+                Verified Mall
+              </span>
+            )}
+            {product.stock !== undefined && product.stock > 0 && product.stock < 5 && (
+              <span className="inline-block bg-red-100 text-red-600 border border-red-200 text-[9px] font-black uppercase px-1.5 py-0.5 rounded animate-pulse">
+                Low Stock
+              </span>
+            )}
+          </div>
 
           {/* Product Name (capped to 2 lines for precise cellular symmetry) */}
           <h3 className="text-gray-800 text-[11px] sm:text-xs font-normal leading-snug tracking-tight mb-1 line-clamp-2 h-8 group-hover:text-[#7c3aed] transition-colors">
@@ -148,14 +159,33 @@ export default function ProductCard({
           </div>
         </div>
 
-        {/* Purple Add to Cart Button */}
-        <button
-          type="button"
-          onClick={() => onAddToCart(product)}
-          className="w-full bg-[#7c3aed] hover:bg-[#6d28d9] text-white py-2 rounded text-xs font-bold transition-all duration-150 flex items-center justify-center gap-1.5 hover:shadow-sm active:scale-[0.98] cursor-pointer mt-auto"
-        >
-          <span>Add to cart</span>
-        </button>
+        {/* Actions Button Bar */}
+        <div className="flex gap-1.5 mt-auto">
+          <button
+            type="button"
+            onClick={() => onAddToCart(product)}
+            className="flex-1 bg-[#7c3aed] hover:bg-[#6d28d9] text-white py-2 rounded text-xs font-bold transition-all duration-150 flex items-center justify-center gap-1.5 hover:shadow-sm active:scale-[0.98] cursor-pointer"
+          >
+            <span>Add to cart</span>
+          </button>
+          {onAddToCompare && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onAddToCompare(product);
+              }}
+              className={`px-2 py-2 rounded text-[10px] font-black border transition duration-150 flex items-center justify-center cursor-pointer ${
+                isInComparisonList 
+                  ? 'bg-purple-100 hover:bg-purple-200 border-[#7c3aed] text-[#7c3aed]' 
+                  : 'bg-white hover:bg-gray-50 border-gray-300 text-gray-700'
+              }`}
+              title="Compare product"
+            >
+              {isInComparisonList ? '✓' : 'Compare'}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
