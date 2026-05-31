@@ -5,7 +5,7 @@ import {
   ChevronRight, Loader2
 } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
-import { Product, Order, SupportMessage, CartItem } from '../types';
+import { Product, Order, SupportMessage, CartItem, ProductOption, ProductVariant } from '../types';
 
 /* ==========================================================================
    1. SELLER ZONE DASHBOARD
@@ -16,57 +16,20 @@ interface SellerDashboardProps {
   onDeleteProduct: (id: string) => void;
 }
 
-// Custom CSS High-Fidelity Varsity Jersey Renderer for Chicago 32
-export function ChicagoVarsityJerseyDraw({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
-  const isSm = size === "sm";
-  return (
-    <div className={`bg-[#f3f4f6] rounded flex flex-col items-center justify-center border border-gray-200 select-none overflow-hidden relative ${isSm ? 'w-10 h-10 p-0.5' : 'w-full aspect-square p-4 h-full'}`}>
-      {/* Background athletic pattern ribbon */}
-      <div className="absolute top-0 left-0 right-0 h-1 bg-[#222]" />
-      
-      {/* Upper Jersey Tee body */}
-      <div className={`relative flex flex-col items-center justify-start bg-white border border-gray-100 rounded-t-lg shadow-sm ${isSm ? 'w-5.5 h-6 p-0.5' : 'w-24 h-24 p-2'}`}>
-        {/* Sleeve cut extensions */}
-        <div className="absolute -left-1.5 top-1 w-2 h-4 bg-[#111] rounded-l-xs" />
-        <div className="absolute -right-1.5 top-1 w-2 h-4 bg-[#111] rounded-r-xs" />
-        
-        {/* Varsity text */}
-        <span className={`font-black tracking-tight text-[#111] text-center uppercase block leading-none ${isSm ? 'text-[4px] mt-0.5' : 'text-[9.5px] mt-1'}`}>
-          CHICAGO
-        </span>
-        {/* Varsity Number */}
-        <span className={`font-black text-[#7c3aed] text-center block leading-none ${isSm ? 'text-[7px] mt-0.5' : 'text-[20px] mt-1'}`}>
-          32
-        </span>
-        
-        {/* Sleeve accent striping */}
-        <div className="absolute top-2.5 left-0 right-0 h-0.5 bg-amber-400" />
-      </div>
-
-      {/* Matching Shorts */}
-      <div className={`relative flex justify-around items-center bg-[#111] border border-[#222] rounded-b-md shadow-sm ${isSm ? 'w-5.5 h-3 mt-0.5 p-0.5' : 'w-24 h-14 mt-1.5 p-1'}`}>
-        <span className={`font-black text-white ${isSm ? 'text-[4px]' : 'text-[9px]'}`}>32</span>
-        <div className="w-0.5 h-full bg-white/20" />
-        <span className={`font-mono text-white/40 ${isSm ? 'text-[3px]' : 'text-[7px]'}`}>CHIC</span>
-      </div>
-    </div>
-  );
-}
-
 export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct }: SellerDashboardProps) {
-  const [vendorName, setVendorName] = useState('Supreme Appliances Ltd');
+  const [vendorName] = useState('Supreme Appliances Ltd');
   const [newProdName, setNewProdName] = useState('');
   const [newProdCategory, setNewProdCategory] = useState('Fashion & Apparel');
   const [newProdPrice, setNewProdPrice] = useState('');
   const [newProdOldPrice, setNewProdOldPrice] = useState('');
-  const [newProdImageUrl, setNewProdImageUrl] = useState('chicago-32-jersey');
+  const [newProdImageUrl, setNewProdImageUrl] = useState('');
   const [newProdDesc, setNewProdDesc] = useState('');
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
 
-  // Ad-ons, featured, related states matching both mockups
+  // Add-ons, featured, related states
   const [isFeatured, setIsFeatured] = useState(false);
-  const [isApprovedDirectly, setIsApprovedDirectly] = useState(true); // Auto-publish directly to Home Page by default!
+  const [isApprovedDirectly, setIsApprovedDirectly] = useState(true); // Auto-publish directly to Home Page
   const [selectedAddons, setSelectedAddons] = useState<string[]>([]);
   const [showAddonModal, setShowAddonModal] = useState(false);
   const [selectedRelated, setSelectedRelated] = useState<string[]>([]);
@@ -76,22 +39,57 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct }: 
   const [sortBy, setSortBy] = useState<'name' | 'price' | 'none'>('none');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
-  // AI Copilot widgets state from Screenshot 1
-  const [isCopilotMinimized, setIsCopilotMinimized] = useState(false);
-  const [isAiGenerating, setIsAiGenerating] = useState(false);
 
-  // Gallery of 5 images state
-  const [uploadedImages, setUploadedImages] = useState<(string | null)[]>([
-    'chicago-32-jersey',
-    null,
-    null,
-    null,
-    null
+  // --- Squarespace Commerce UI States ---
+  const [isEditorOpen, setIsEditorOpen] = useState(false);
+  const [editingProductId, setEditingProductId] = useState<string | null>(null);
+
+  // Logistics parameters matching Squarespace /config/commerce exactly
+  const [inventorySku, setInventorySku] = useState('');
+  const [inventoryQty, setInventoryQty] = useState('150');
+  const [isUnlimitedQty, setIsUnlimitedQty] = useState(true);
+  const [inventoryWeight, setInventoryWeight] = useState('1.2');
+  const [inventoryLength, setInventoryLength] = useState('12');
+  const [inventoryWidth, setInventoryWidth] = useState('8');
+  const [inventoryHeight, setInventoryHeight] = useState('4');
+
+  // Multi-image list for rich image uploaders (5 slots)
+  const [productImages, setProductImages] = useState<(string | null)[]>([
+    null, null, null, null, null
   ]);
-  const [activeImageSlot, setActiveImageSlot] = useState<number | null>(null);
+  const [activeImageSlot, setActiveImageSlot] = useState<number>(0);
+  const [fullscreenPreviewImage, setFullscreenPreviewImage] = useState<string | null>(null);
+
+  const isSkuValid = (sku: string) => {
+    if (!sku) return true;
+    return /^[a-zA-Z0-9]+-[0-9]+-[a-zA-Z0-9]+$/.test(sku);
+  };
+
+  // Product Options and Variants states
+  const [productOptions, setProductOptions] = useState<ProductOption[]>([]);
+  const [productVariants, setProductVariants] = useState<ProductVariant[]>([]);
+  const [showAddOptionForm, setShowAddOptionForm] = useState(false);
+  const [newOptionName, setNewOptionName] = useState('');
+  const [newOptionValues, setNewOptionValues] = useState('');
+
+  // Preset Premium Stock Photos for visual quick-clicks (Squarespace Workspace stock)
+  const STOCK_PRESETS = [
+    { name: 'Red Sneakers', category: 'Fashion & Apparel', url: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=600&q=80' },
+    { name: 'Varsity Jacket', category: 'Fashion & Apparel', url: 'https://images.unsplash.com/photo-1556905055-8f358a7a47b2?auto=format&fit=crop&w=600&q=80' },
+    { name: 'Athletic Socks', category: 'Fashion & Apparel', url: 'https://images.unsplash.com/photo-1582966772680-860e372bb558?auto=format&fit=crop&w=600&q=80' },
+    { name: 'Smartwatch Dial', category: 'Electronics & Appliances', url: 'https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?auto=format&fit=crop&w=600&q=80' },
+    { name: 'Wireless Headphones', category: 'Electronics & Appliances', url: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=600&q=80' },
+    { name: 'Leather Slingbag', category: 'Fashion & Apparel', url: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=600&q=80' },
+    { name: 'Kitchen Blender', category: 'Electronics & Appliances', url: 'https://images.unsplash.com/photo-1578643463396-0997cb5328c1?auto=format&fit=crop&w=600&q=80' },
+    { name: 'Makeup Palette', category: 'Health & Beauty', url: 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?auto=format&fit=crop&w=600&q=80' },
+    { name: 'White Sports Trainers', category: 'Fashion & Apparel', url: 'https://images.unsplash.com/photo-1549298916-b41d501d3772?auto=format&fit=crop&w=600&q=80' },
+    { name: 'Retro Aviators', category: 'Fashion & Apparel', url: 'https://images.unsplash.com/photo-1511499767150-a48a237f0083?auto=format&fit=crop&w=600&q=80' },
+    { name: 'Hydraulic Cleanser', category: 'Health & Beauty', url: 'https://images.unsplash.com/photo-1608248597481-496100c80836?auto=format&fit=crop&w=600&q=80' },
+    { name: 'Denim Trucker Jacket', category: 'Fashion & Apparel', url: 'https://images.unsplash.com/photo-1576995853123-5a10305d93c0?auto=format&fit=crop&w=600&q=80' }
+  ];
 
   const myProducts = products.filter(p => p.sellerId === 'vendor-self' || p.sellerName === vendorName);
+  
   const sortedProducts = [...myProducts].sort((a, b) => {
     if (sortBy === 'name') {
       const nameA = a.name.toLowerCase();
@@ -102,132 +100,253 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct }: 
     }
     return 0;
   });
+
   const totalSales = 1240000;
   const pendingApproval = products.filter(p => !p.isApproved && (p.sellerId === 'vendor-self' || p.sellerName === vendorName)).length;
 
-  const triggerAiGenerate = async () => {
-    setIsAiGenerating(true);
-    setFormSuccess('');
-    setFormError('');
+  // Generate combinations of product variants
+  const generateVariantsCombinations = (opts: ProductOption[], existingVars: ProductVariant[]) => {
+    if (opts.length === 0) return [];
+    
+    const basePrice = parseFloat(newProdPrice) || 0;
+    const baseSku = inventorySku || 'SKU';
 
-    // If it is the default preset, map to the proper Unsplash image URL
-    let targetImg = newProdImageUrl;
-    if (targetImg === 'chicago-32-jersey') {
-      targetImg = 'https://images.unsplash.com/photo-1556905055-8f358a7a47b2?auto=format&fit=crop&w=400&q=80';
-    }
-
-    try {
-      const response = await fetch('/api/gemini/analyze-product', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ imageUrl: targetImg })
+    const combine = (index: number, currentOpts: Record<string, string>): Record<string, string>[] => {
+      if (index === opts.length) {
+        return [currentOpts];
+      }
+      const option = opts[index];
+      const results: Record<string, string>[] = [];
+      for (const val of option.values) {
+        results.push(...combine(index + 1, { ...currentOpts, [option.name]: val }));
+      }
+      return results;
+    };
+    
+    const combinations = combine(0, {});
+    
+    return combinations.map((comb) => {
+      // Find if we have an existing variant mirroring these EXACT options
+      const match = existingVars.find((v) => {
+        const vKeys = Object.keys(v.options);
+        const combKeys = Object.keys(comb);
+        if (vKeys.length !== combKeys.length) return false;
+        return vKeys.every((k) => v.options[k] === comb[k]);
       });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP error ${response.status}`);
-      }
-
-      const data = await response.json();
-
-      setNewProdName(data.name || 'AI Product');
-      setNewProdCategory(data.category || 'Fashion & Apparel');
-      setNewProdPrice(String(data.price || '12000'));
-      setNewProdOldPrice(String(data.originalPrice || '15000'));
-      setNewProdDesc(data.description || 'Premium product designed with high quality components and materials.');
       
-      // Keep or update image URLs
-      if (newProdImageUrl === 'chicago-32-jersey') {
-        setNewProdImageUrl(targetImg);
-        setUploadedImages([
-          targetImg,
-          'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=400&q=80',
-          'https://images.unsplash.com/photo-1539109136881-3be0616acf4b?auto=format&fit=crop&w=400&q=80',
-          null,
-          null
-        ]);
+      if (match) {
+        return match;
       }
       
-      setIsFeatured(true);
-      setFormSuccess('Google Gemini AI successfully analyzed the image and fully populated the product details!');
-      setTimeout(() => setFormSuccess(''), 6000);
+      // otherwise make a new one
+      const suffix = Object.values(comb).map(v => v.toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0, 3)).join('-');
+      const generatedSku = `${baseSku}-${suffix}-${Math.floor(10 + Math.random() * 90)}`;
+      
+      return {
+        id: 'var-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
+        options: comb,
+        price: basePrice,
+        stock: 50,
+        sku: generatedSku
+      };
+    });
+  };
 
-    } catch (err: any) {
-      console.warn('Real Gemini API call failed, falling back to offline preset:', err);
-      // Fallback in case key is missing or invalid
-      setNewProdName('Chicago 32 Varsity Hooded Tee & Shorts Athletic Co-ord Set');
-      setNewProdCategory('Fashion & Apparel');
-      setNewProdPrice('14500');
-      setNewProdOldPrice('18900');
-      setNewProdDesc('Stay comfortable and active with this trendy Chicago 32 varsity athletic matching set. Includes a lightweight breathable hoodie t-shirt and elastic-waist running shorts. Perfect for sports, streetwear, or casual lounging. Fabric is premium soft cotton-polyester blend with durable print quality.');
-      const primaryImg = 'https://images.unsplash.com/photo-1556905055-8f358a7a47b2?auto=format&fit=crop&w=400&q=80';
-      setNewProdImageUrl(primaryImg);
-      setUploadedImages([
-        primaryImg,
-        'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=400&q=80',
-        'https://images.unsplash.com/photo-1539109136881-3be0616acf4b?auto=format&fit=crop&w=400&q=80',
-        null,
-        null
-      ]);
-      setIsFeatured(true);
-      setFormSuccess('Loaded catalog template. Connect your Gemini API Key under Secrets to enable full image analysis!');
-      setTimeout(() => setFormSuccess(''), 6000);
-    } finally {
-      setIsAiGenerating(false);
+  const handleAddOption = () => {
+    if (!newOptionName.trim() || !newOptionValues.trim()) {
+      return;
     }
+    const name = newOptionName.trim();
+    const values = newOptionValues.split(/[,;]+/).map(v => v.trim()).filter(Boolean);
+    if (values.length === 0) {
+      return;
+    }
+
+    if (productOptions.some(o => o.name.toLowerCase() === name.toLowerCase())) {
+      return;
+    }
+
+    const updatedOptions = [...productOptions, { name, values }];
+    setProductOptions(updatedOptions);
+    const updatedVariants = generateVariantsCombinations(updatedOptions, productVariants);
+    setProductVariants(updatedVariants);
+
+    // reset fields
+    setNewOptionName('');
+    setNewOptionValues('');
+    setShowAddOptionForm(false);
+  };
+
+  const handleRemoveOption = (optionNameToRemove: string) => {
+    const updatedOptions = productOptions.filter(o => o.name !== optionNameToRemove);
+    setProductOptions(updatedOptions);
+    const updatedVariants = generateVariantsCombinations(updatedOptions, productVariants);
+    setProductVariants(updatedVariants);
+  };
+
+  const handleUpdateVariantValue = (varId: string, field: 'price' | 'stock' | 'sku', value: any) => {
+    setProductVariants(prev => prev.map(v => {
+      if (v.id === varId) {
+        return {
+          ...v,
+          [field]: field === 'price' ? (parseFloat(value) || 0) : field === 'stock' ? (parseInt(value) || 0) : value
+        };
+      }
+      return v;
+    }));
+  };
+
+  // Open editor for a brand new product
+  const handleCreateNewClick = () => {
+    setEditingProductId(null);
+    setNewProdName('');
+    setNewProdCategory('Fashion & Apparel');
+    setNewProdPrice('');
+    setNewProdOldPrice('');
+    setNewProdDesc('');
+    setNewProdImageUrl('');
+    setIsFeatured(false);
+    setIsApprovedDirectly(true);
+    setSelectedAddons([]);
+    setSelectedRelated([]);
+    setInventorySku('QUX-MER-' + Math.floor(1000 + Math.random() * 9000));
+    setInventoryQty('150');
+    setIsUnlimitedQty(true);
+    setInventoryWeight('1.2');
+    setInventoryLength('12');
+    setInventoryWidth('8');
+    setInventoryHeight('4');
+    setProductImages([null, null, null, null, null]);
+    setActiveImageSlot(0);
+    setProductOptions([]);
+    setProductVariants([]);
+    setShowAddOptionForm(false);
+    setNewOptionName('');
+    setNewOptionValues('');
+    setFormError('');
+    setFormSuccess('');
+    setIsEditorOpen(true);
+  };
+
+  // Open editor for an existing product to edit it
+  const handleEditClick = (p: Product) => {
+    setEditingProductId(p.id);
+    setNewProdName(p.name);
+    setNewProdCategory(p.category);
+    setNewProdPrice(String(p.price));
+    setNewProdOldPrice(p.originalPrice ? String(p.originalPrice) : '');
+    setNewProdDesc(p.description || '');
+    setNewProdImageUrl(p.imageUrl || '');
+    setIsFeatured(p.specifications?.['Featured'] === 'Yes');
+    setIsApprovedDirectly(p.isApproved !== undefined ? p.isApproved : true);
+    
+    // Parse logistics
+    setInventorySku(p.specifications?.['Origin'] && p.specifications?.['Origin'].startsWith('SKU-') ? p.specifications?.['Origin'] : 'SKU-' + Math.floor(1000 + Math.random() * 9000));
+    const isUnl = p.specifications?.['Stock'] === 'Unlimited' || !p.specifications?.['Stock'];
+    setIsUnlimitedQty(isUnl);
+    if (!isUnl && p.specifications?.['Stock']) {
+      setInventoryQty(p.specifications?.['Stock'].replace(' units', '') || '100');
+    } else {
+      setInventoryQty('150');
+    }
+    
+    const parsedWeight = p.specifications?.['Weight'] ? p.specifications?.['Weight'].replace(' lbs', '') : '1.2';
+    setInventoryWeight(parsedWeight);
+    
+    const specDim = p.specifications?.['Dimensions'] ? p.specifications?.['Dimensions'].split(' x ') : ['12', '8', '4 in'];
+    setInventoryLength(specDim[0] || '12');
+    setInventoryWidth(specDim[1] || '8');
+    setInventoryHeight(specDim[2] ? specDim[2].replace(' in', '') : '4');
+
+    // Parse image gallery list
+    const existingImgs = [p.imageUrl, ...(p.imageUrls ? p.imageUrls.filter(i => i !== p.imageUrl) : [])].filter(Boolean);
+    const loadedImgs = [...existingImgs];
+    while (loadedImgs.length < 5) loadedImgs.push(null);
+    setProductImages(loadedImgs.slice(0, 5));
+    setActiveImageSlot(0);
+
+    // Parse addons
+    if (p.specifications?.['Addons Included'] && p.specifications?.['Addons Included'] !== 'None') {
+      setSelectedAddons(p.specifications?.['Addons Included'].split(', ').map(str => str.toLowerCase().replace(/\s+/g, '-')));
+    } else {
+      setSelectedAddons([]);
+    }
+
+    setProductOptions(p.options || []);
+    setProductVariants(p.variants || []);
+    setShowAddOptionForm(false);
+    setNewOptionName('');
+    setNewOptionValues('');
+
+    setFormError('');
+    setFormSuccess('');
+    setIsEditorOpen(true);
   };
 
   const handleCreateProduct = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newProdName || !newProdPrice || !newProdImageUrl) {
-      setFormError('Name, price and direct image URL are highly recommended!');
+
+    // The primary image is the first slot that actually has a value, or the manual model fallback value
+    const primaryImg = productImages[0] || newProdImageUrl || 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=600&q=80';
+    
+    if (!newProdName || !newProdPrice) {
+      setFormError('Product Name and Retail Selling Price are strictly required!');
       return;
     }
 
     const priceNum = parseFloat(newProdPrice);
     if (isNaN(priceNum) || priceNum <= 0) {
-      setFormError('Kindly input a valid numeric selling price.');
+      setFormError('Kindly input a valid numeric retail price.');
       return;
     }
 
-    // Assign Unsplash photo if it is Chicago jersey mockup
-    const finalImageUrl = newProdImageUrl === 'chicago-32-jersey' 
-      ? 'https://images.unsplash.com/photo-1556905055-8f358a7a47b2?auto=format&fit=crop&w=400&q=80'
-      : newProdImageUrl;
+    if (inventorySku && !isSkuValid(inventorySku)) {
+      setFormError('Formatting Error: SKU must follow the standard PREFIX-NUMERIC-SUFFIX format (e.g., QUX-123-AB).');
+      return;
+    }
 
-    const validImages = Array.from(new Set([
-      finalImageUrl,
-      ...uploadedImages
-        .map(img => img === 'chicago-32-jersey' ? 'https://images.unsplash.com/photo-1556905055-8f358a7a47b2?auto=format&fit=crop&w=440&q=80' : img)
-        .filter((img): img is string => !!img)
-    ])).slice(0, 5);
+    const originalPriceNum = newProdOldPrice ? parseFloat(newProdOldPrice) : priceNum * 1.25;
+
+    // Filter valid URLs from uploader list
+    const validImages = productImages.filter((img): img is string => !!img);
+    if (validImages.indexOf(primaryImg) === -1) {
+      validImages.unshift(primaryImg);
+    }
+    const finalImagesList = Array.from(new Set(validImages)).slice(0, 5) as string[];
+    const fromDeviceList = finalImagesList.filter((img): img is string => img.startsWith('data:image'));
+
+    const targetProductId = editingProductId || 'prod-' + Date.now();
 
     const newProduct: Product = {
-      id: 'prod-' + Date.now(),
+      id: targetProductId,
       name: newProdName,
       category: newProdCategory,
       price: priceNum,
-      originalPrice: newProdOldPrice ? parseFloat(newProdOldPrice) : priceNum * 1.25,
-      discount: newProdOldPrice ? Math.round(((parseFloat(newProdOldPrice) - priceNum) / parseFloat(newProdOldPrice)) * 100) : 20,
-      imageUrl: finalImageUrl,
-      imageUrls: validImages,
+      originalPrice: originalPriceNum,
+      discount: Math.round(((originalPriceNum - priceNum) / originalPriceNum) * 100),
+      imageUrl: primaryImg,
+      imageUrls: finalImagesList,
+      fromDevice: fromDeviceList,
       rating: 5.0,
       reviewsCount: 0,
-      description: newProdDesc || 'Brand new premium verified product listed by authorized merchant.',
-      stock: 30,
+      description: newProdDesc || 'Brand new premium verified product listing curated in modern Squarespace CMS Workspace.',
+      stock: isUnlimitedQty ? 9999 : parseInt(inventoryQty) || 50,
       sellerId: 'vendor-self',
       sellerName: vendorName,
-      isApproved: isApprovedDirectly, // set from user preference toggle
+      isApproved: isApprovedDirectly, 
       brand: newProdName.trim().split(/\s+/)[0] || 'Generic',
       createdAt: Date.now(),
       specifications: { 
-        'Origin': 'Authentic Import', 
-        'Vendor Guarantee': '1 Year limited',
+        'Origin': inventorySku || 'SKU-UNKNOWN', 
+        'Vendor Guarantee': '1 Year Quxba Shield Guarantee',
+        'Stock': isUnlimitedQty ? 'Unlimited' : `${inventoryQty} units`,
+        'Weight': `${inventoryWeight} lbs`,
+        'Dimensions': `${inventoryLength} x ${inventoryWidth} x ${inventoryHeight} in`,
         'Addons Included': selectedAddons.length > 0 ? selectedAddons.map(a => a.replace('-', ' ')).join(', ') : 'None',
         'Featured': isFeatured ? 'Yes' : 'No'
-      }
+      },
+      options: productOptions,
+      variants: productVariants
     };
 
     setIsSubmitting(true);
@@ -236,872 +355,1160 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct }: 
 
     setTimeout(() => {
       onAddNewProduct(newProduct);
-      setFormSuccess(isApprovedDirectly 
-        ? 'Product created and published directly on Homepage with category selection!' 
-        : 'Product submitted successfully! It is currently pending approval by the Admin department.'
+      setFormSuccess(editingProductId 
+        ? 'Squarespace Commerce: Product configuration synchronized and updated!' 
+        : (isApprovedDirectly 
+          ? 'Squarespace Commerce: Verified listing published directly to Storefront!' 
+          : 'Squarespace Commerce: Draft saved successfully! Status set to Pending Review.'
+        )
       );
-      setFormError('');
+      
       setIsSubmitting(false);
       
-      // reset form fields
-      setNewProdName('');
-      setNewProdPrice('');
-      setNewProdOldPrice('');
-      setNewProdImageUrl('chicago-32-jersey');
-      setUploadedImages(['chicago-32-jersey', null, null, null, null]);
-      setNewProdDesc('');
-      setIsFeatured(false);
-      setSelectedAddons([]);
-      setSelectedRelated([]);
-      
-      setTimeout(() => setFormSuccess(''), 5000);
-    }, 1000);
+      // Keep alert feedback elegant and close panel
+      setTimeout(() => {
+        setIsEditorOpen(false);
+        setEditingProductId(null);
+        setFormSuccess('');
+      }, 1000);
+    }, 800);
+  };
+
+  const handleApplyImageInSlot = (url: string) => {
+    const updated = [...productImages];
+    updated[activeImageSlot] = url;
+    setProductImages(updated);
+    if (activeImageSlot === 0) {
+      setNewProdImageUrl(url);
+    }
+  };
+
+  const handleClearImageInSlot = (slotIdx: number) => {
+    const updated = [...productImages];
+    updated[slotIdx] = null;
+    setProductImages(updated);
+    if (slotIdx === 0) {
+      setNewProdImageUrl('');
+    }
   };
 
   return (
     <div className="space-y-8 animate-fade-in font-sans">
       
-      {/* Vendor Hub Info Header */}
-      <div className="bg-gradient-to-r from-green-700 via-emerald-600 to-teal-500 rounded-xl p-6 text-white shadow-md">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div>
-            <span className="bg-white/20 text-white text-xs font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider">Quxba Verified Merchant</span>
-            <h2 className="text-2xl font-extrabold uppercase mt-1">{vendorName} Hub</h2>
-            <p className="text-xs text-emerald-100 mt-1">Manage stock inventory, review incoming payouts, and audit listings instantly.</p>
-          </div>
-          <div className="flex gap-2.5">
-            <div className="bg-black/20 p-3 rounded-lg text-center backdrop-blur-sm min-w-[100px]">
-              <p className="text-[10px] text-emerald-200 font-bold uppercase">WALLET VALUE</p>
-              <p className="text-sm font-black">₦1,450,000</p>
+      {/* 1. SQUARESQUARE-STYLE COMMERCE WORKSPACE WRAPPER */}
+      {!isEditorOpen ? (
+        <>
+          {/* Vendor Hub Info Header */}
+          <div className="bg-[#111] rounded-xl p-6 text-white shadow-md relative overflow-hidden">
+            <div className="absolute right-0 top-0 opacity-10 font-black text-7xl select-none uppercase tracking-widest leading-none pointer-events-none translate-x-10 translate-y-2">
+              COMMERCE
             </div>
-            <div className="bg-black/20 p-3 rounded-lg text-center backdrop-blur-sm min-w-[100px]">
-              <p className="text-[10px] text-emerald-200 font-bold uppercase">STORE RATING</p>
-              <p className="text-sm font-black text-yellow-300">4.9 ★</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Seller Metrics Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white p-5 rounded-lg border border-gray-100 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-xs font-bold text-gray-400 uppercase">Gross Product Sales</p>
-            <p className="text-xl font-extrabold text-[#7c3aed] mt-1">₦{totalSales.toLocaleString()}</p>
-          </div>
-          <div className="bg-purple-50 p-2.5 rounded-full text-[#7c3aed]"><TrendingUp className="w-5 h-5" /></div>
-        </div>
-        <div className="bg-white p-5 rounded-lg border border-gray-100 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-xs font-bold text-gray-400 uppercase">Active Catalog</p>
-            <p className="text-xl font-extrabold text-gray-880 mt-1">{myProducts.filter(p => p.isApproved).length}</p>
-          </div>
-          <div className="bg-green-50 p-2.5 rounded-full text-green-600"><ShoppingBag className="w-5 h-5" /></div>
-        </div>
-        <div className="bg-white p-5 rounded-lg border border-gray-100 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-xs font-bold text-gray-400 uppercase">Awaiting admin review</p>
-            <p className="text-xl font-extrabold text-blue-600 mt-1">{pendingApproval}</p>
-          </div>
-          <div className="bg-blue-50 p-2.5 rounded-full text-blue-600"><Building2 className="w-5 h-5" /></div>
-        </div>
-        <div className="bg-white p-5 rounded-lg border border-gray-100 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-xs font-bold text-gray-400 uppercase">Merchant Level</p>
-            <p className="text-xl font-extrabold text-purple-600 mt-1">Diamond 💎</p>
-          </div>
-          <div className="bg-purple-50 p-2.5 rounded-full text-purple-600"><Check className="w-5 h-5" /></div>
-        </div>
-      </div>
-
-      {/* Daily Sales Volume Chart Card using Recharts */}
-      <div className="bg-white p-6 rounded-lg border border-gray-100 shadow-sm space-y-4 font-sans text-left">
-        <div>
-          <h3 className="text-sm font-extrabold text-slate-800 uppercase tracking-wide flex items-center gap-2">
-            <BarChart3 className="w-4 h-4 text-[#7c3aed]" />
-            <span>Daily Sales Volume (Past 7 Days)</span>
-          </h3>
-          <p className="text-xs text-gray-400">Track raw order and transaction flow trends to streamline fulfillment and stock management.</p>
-        </div>
-        <div className="h-60 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={[
-              { day: 'Mon', sales: 12 },
-              { day: 'Tue', sales: 19 },
-              { day: 'Wed', sales: 15 },
-              { day: 'Thu', sales: 27 },
-              { day: 'Fri', sales: 22 },
-              { day: 'Sat', sales: 34 },
-              { day: 'Sun', sales: 29 }
-            ]} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
-              <XAxis dataKey="day" stroke="#9ca3af" fontSize={10} tickLine={false} />
-              <YAxis stroke="#9ca3af" fontSize={10} tickLine={false} axisLine={false} />
-              <Tooltip 
-                contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: '11px' }}
-                cursor={{ fill: 'rgba(124, 58, 237, 0.04)' }} 
-              />
-              <Bar dataKey="sales" fill="#7c3aed" radius={[4, 4, 0, 0]} name="Orders Filled" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* Main double column container */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
-        {/* Left column: Add product Form */}
-        <div className="lg:col-span-6 bg-white p-6 rounded-lg border border-gray-100 shadow-sm space-y-5">
-          <div>
-            <h3 className="text-sm font-extrabold text-gray-855 uppercase tracking-wide flex items-center gap-1.5 pb-2 border-b border-gray-100">
-              <Plus className="w-4 h-4 text-[#7c3aed]" />
-              <span>Host New Product to Quxba</span>
-            </h3>
-            <p className="text-[11px] text-gray-500 mt-1">Created item enters the Admin panel for validation check prior to customer exposure.</p>
-          </div>
-
-          <form onSubmit={handleCreateProduct} className="space-y-4">
-            
-            {/* Title & Category Layout */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 relative z-10">
               <div>
-                <label className="block text-xs font-bold text-gray-600 mb-1">Product Title</label>
-                <input
-                  type="text"
-                  placeholder="Nexus Split AC, Haier Thermocool, etc."
-                  value={newProdName}
-                  onChange={(e) => setNewProdName(e.target.value)}
-                  className="w-full bg-white border border-gray-200 rounded px-3 py-2 text-xs focus:ring-1 focus:ring-purple-500 focus:outline-none font-medium text-slate-800"
-                />
+                <span className="bg-emerald-500/20 text-emerald-400 text-xs font-semibold px-2.5 py-0.5 rounded uppercase tracking-wider">Verified Merchant Hub</span>
+                <h2 className="text-2xl font-black uppercase mt-1 tracking-tight">{vendorName}</h2>
+                <p className="text-xs text-neutral-400 mt-1">Configure stock channels, audit merchant sales, and manage list configurations.</p>
               </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-600 mb-1">Category</label>
-                <select
-                  value={newProdCategory}
-                  onChange={(e) => setNewProdCategory(e.target.value)}
-                  className="w-full bg-white border border-gray-200 rounded px-2.5 py-2 text-xs focus:ring-1 focus:ring-purple-500 focus:outline-none"
-                >
-                  <option>Fashion & Apparel</option>
-                  <option>Electronics & Appliances</option>
-                  <option>Phones & Tablets</option>
-                  <option>Computers & Accessories</option>
-                  <option>Supermarket & Groceries</option>
-                  <option>Health & Beauty</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Custom Images Panel from Screenshot 1 */}
-            <div className="space-y-2.5 border-t border-gray-100 pt-4">
-              <span className="block text-xs font-extrabold text-slate-800 uppercase tracking-wider">Images</span>
-              
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5">
-                {/* Image Container Card */}
-                <div className="md:col-span-7 border border-gray-200 rounded-lg p-3.5 space-y-3.5 bg-white shadow-xs">
-                            {/* Photo list of uploaded images - Up to 5 slots strictly matching user request */}
-                  <div className="grid grid-cols-5 gap-2 w-full">
-                    {[0, 1, 2, 3, 4].map((index) => {
-                      const imgUrl = uploadedImages[index];
-                      return (
-                        <div key={index} className="relative group aspect-square rounded border border-gray-200 flex items-center justify-center bg-gray-50 overflow-hidden" style={{ minWidth: "55px", minHeight: "55px" }}>
-                          {imgUrl ? (
-                            <>
-                              {imgUrl === 'chicago-32-jersey' ? (
-                                <ChicagoVarsityJerseyDraw size="sm" />
-                              ) : (
-                                <img 
-                                  src={imgUrl} 
-                                  alt={`Pic ${index + 1}`} 
-                                  className="max-h-[85%] max-w-[85%] object-contain"
-                                  referrerPolicy="no-referrer"
-                                />
-                              )}
-                              
-                              {/* Hover actions */}
-                              <div className="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition duration-155 flex flex-col items-center justify-center gap-1 z-10">
-                                <button
-                                  type="button"
-                                  onClick={() => setActiveImageSlot(index)}
-                                  className="px-1.5 py-0.5 bg-white text-gray-800 text-[8px] font-extrabold rounded shadow-xs hover:bg-[#7c3aed] hover:text-white transition cursor-pointer"
-                                >
-                                  EDIT
-                                </button>
-                                {index > 0 && (
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const newImages = [...uploadedImages];
-                                      newImages[index] = null;
-                                      setUploadedImages(newImages);
-                                    }}
-                                    className="px-1.5 py-0.5 bg-red-600 text-white text-[8px] font-extrabold rounded shadow-xs hover:bg-red-700 transition cursor-pointer"
-                                  >
-                                    DEL
-                                  </button>
-                                )}
-                              </div>
-                              <span className="absolute bottom-0.5 right-0.5 bg-black/55 text-white text-[7px] px-1 py-0.2 rounded font-black tracking-widest uppercase scale-90">
-                                Pic {index + 1}
-                              </span>
-                            </>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => setActiveImageSlot(index)}
-                              className="w-full h-full flex flex-col items-center justify-center gap-1 hover:bg-purple-50/20 text-gray-400 hover:text-[#7c3aed] transition cursor-pointer"
-                            >
-                              <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-                              <span className="text-[7px] font-black uppercase text-center scale-90">Add Pic {index + 1}</span>
-                            </button>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Featured Indicator Row Strip strictly aligned with UI */}
-                  <div className="border-t border-gray-150/60 pt-2.5 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded border border-gray-200 bg-gray-50 overflow-hidden flex items-center justify-center flex-shrink-0">
-                        {newProdImageUrl === 'chicago-32-jersey' ? (
-                          <ChicagoVarsityJerseyDraw size="sm" />
-                        ) : (
-                          <img src={newProdImageUrl || 'https://images.unsplash.com/photo-1556905055-8f358a7a47b2?auto=format&fit=crop&w=400&q=80'} alt="" className="max-h-[90%] max-w-[90%] object-contain" />
-                        )}
-                      </div>
-                      <span className="text-[11.5px] font-black text-slate-700">Primary Active (Pic 1)</span>
-                    </div>
-
-                    {/* Option dots */}
-                    <button 
-                      type="button" 
-                      onClick={() => setActiveImageSlot(0)}
-                      className="text-[#7c3aed] hover:text-purple-600 font-extrabold hover:bg-purple-50 px-2 py-1 rounded cursor-pointer text-[10px] uppercase transition"
-                      title="Configure image options"
-                    >
-                      Change Primary
-                    </button>
-                  </div>
-
-                  {/* Add at least three photos blue banner prompt with a blue Star / Sparkle icon */}
-                  <div className="flex items-start gap-1.5 text-[10.5px] text-[#0066cc] font-semibold pt-2 border-t border-gray-100">
-                    <span className="text-[#0066cc] text-[13px] leading-none">✨</span>
-                    <span className="leading-snug">Add at least three photos to show off your product. Include a front, back, and detail shot.</span>
-                  </div>
-
+              <div className="flex gap-2.5">
+                <div className="bg-neutral-800 border border-neutral-700/50 p-3 rounded text-center min-w-[105px]">
+                  <p className="text-[9px] text-neutral-400 font-bold uppercase tracking-wider">ESCROW WALLET</p>
+                  <p className="text-sm font-black text-emerald-400">₦1,450,000</p>
                 </div>
-
-                {/* Gemini AI Copilot Helper Block (Screenshot 1 Right) */}
-                {!isCopilotMinimized ? (
-                  <div className="md:col-span-5 bg-gradient-to-br from-[#e0f2fe] via-[#f0fdf4] to-slate-50 border border-blue-100 rounded-xl p-3.5 shadow-xs flex flex-col justify-between relative min-h-[140px]">
-                    {/* Header bar and minimize icon */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex gap-1 items-center">
-                        {/* 4 dots AI Icon matching layout */}
-                        <div className="flex items-center gap-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-                          <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-bounce" />
-                          <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
-                        </div>
-                      </div>
-                      
-                      <button 
-                        type="button" 
-                        onClick={() => setIsCopilotMinimized(true)}
-                        className="text-gray-400 hover:text-slate-700 hover:bg-gray-100 p-0.5 rounded text-[10px]"
-                        title="Hide panel"
-                      >
-                        —
-                      </button>
-                    </div>
-
-                    <p className="text-[11px] leading-relaxed text-slate-600 font-semibold mt-1">
-                      Want to generate product details automatically based on this image?
-                    </p>
-
-                    <button
-                      type="button"
-                      disabled={isAiGenerating}
-                      onClick={triggerAiGenerate}
-                      className="w-full bg-white hover:bg-slate-50 text-slate-800 border border-gray-200 py-1.5 rounded-lg text-xs font-extrabold shadow-xs transition hover:scale-101 active:scale-99 flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-60 mt-2"
-                    >
-                      {isAiGenerating ? (
-                        <>
-                          <RefreshCw className="w-3.5 h-3.5 animate-spin text-purple-500" />
-                          <span>Analyzing photo...</span>
-                        </>
-                      ) : (
-                        <span>Generate</span>
-                      )}
-                    </button>
-                  </div>
-                ) : (
-                  <div className="md:col-span-5 flex items-center justify-center bg-gray-50 border border-gray-200 rounded-xl p-2.5 text-center">
-                    <button 
-                      type="button" 
-                      onClick={() => setIsCopilotMinimized(false)}
-                      className="text-[10px] text-blue-600 font-extrabold hover:underline"
-                    >
-                      💡 Use AI Copilot Auto-Fill
-                    </button>
-                  </div>
-                )}
+                <div className="bg-neutral-800 border border-neutral-700/50 p-3 rounded text-center min-w-[105px]">
+                  <p className="text-[9px] text-neutral-400 font-bold uppercase tracking-wider">SATISFACTION</p>
+                  <p className="text-sm font-black text-amber-400">4.9 ★</p>
+                </div>
               </div>
             </div>
+          </div>
 
-            {/* Price Inputs */}
-            <div className="grid grid-cols-2 gap-3">
+          {/* Seller Metrics Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="bg-white p-5 rounded border border-gray-200 shadow-xs flex items-center justify-between">
               <div>
-                <label className="block text-xs font-bold text-gray-600 mb-1">Sale Price (₦)</label>
-                <input
-                  type="number"
-                  placeholder="e.g. 14500"
-                  value={newProdPrice}
-                  onChange={(e) => setNewProdPrice(e.target.value)}
-                  className="w-full bg-white border border-gray-200 rounded px-3 py-2 text-xs focus:ring-1 focus:ring-purple-500 focus:outline-none text-slate-800 font-bold"
-                />
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Total Sales (Gross)</p>
+                <p className="text-xl font-bold text-neutral-900 mt-1">₦{totalSales.toLocaleString()}</p>
               </div>
-              <div>
-                <label className="block text-xs font-bold text-gray-600 mb-1">Regular Price (₦)</label>
-                <input
-                  type="number"
-                  placeholder="e.g. 18900"
-                  value={newProdOldPrice}
-                  onChange={(e) => setNewProdOldPrice(e.target.value)}
-                  className="w-full bg-white border border-gray-200 rounded px-3 py-2 text-xs focus:ring-1 focus:ring-purple-500 focus:outline-none text-slate-400"
-                />
-              </div>
+              <div className="bg-purple-50 p-2.5 rounded text-[#7c3aed]"><TrendingUp className="w-4 h-4" /></div>
             </div>
+            <div className="bg-white p-5 rounded border border-gray-200 shadow-xs flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Active Inventory</p>
+                <p className="text-xl font-bold text-neutral-900 mt-1">{myProducts.filter(p => p.isApproved).length}</p>
+              </div>
+              <div className="bg-green-50 p-2.5 rounded text-green-600"><ShoppingBag className="w-4 h-4" /></div>
+            </div>
+            <div className="bg-white p-5 rounded border border-gray-200 shadow-xs flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Awaiting Verification</p>
+                <p className="text-xl font-bold text-blue-600 mt-1">{pendingApproval}</p>
+              </div>
+              <div className="bg-blue-50 p-2.5 rounded text-blue-600"><Building2 className="w-4 h-4" /></div>
+            </div>
+            <div className="bg-white p-5 rounded border border-gray-200 shadow-xs flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Membership Class</p>
+                <p className="text-xl font-bold text-neutral-900 mt-1">Merchant Pro 💎</p>
+              </div>
+              <div className="bg-neutral-50 p-2.5 rounded text-neutral-600"><Check className="w-4 h-4" /></div>
+            </div>
+          </div>
 
-            {/* Image link text accessor for backup override */}
+          {/* Daily Sales Volume Chart Card using Recharts */}
+          <div className="bg-white p-6 rounded border border-gray-200 shadow-xs space-y-4 font-sans text-left">
             <div>
-              <label className="block text-xs font-bold text-gray-600 mb-1">Mock Image Link Override</label>
-              <input
-                type="text"
-                placeholder="Product Image URL"
-                value={newProdImageUrl}
-                onChange={(e) => setNewProdImageUrl(e.target.value)}
-                className="w-full bg-white border border-gray-200 rounded px-3 py-1.5 text-[11px] focus:ring-1 focus:ring-purple-500 focus:outline-none text-slate-600 font-mono"
-              />
+              <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                <BarChart3 className="w-4 h-4 text-neutral-800" />
+                <span>Daily Revenue & Volume Metrics</span>
+              </h3>
+              <p className="text-[11px] text-gray-400">Review consumer dispatch transactions to forecast product replenishment cycles.</p>
             </div>
-
-            {/* Description Text area */}
-            <div>
-              <label className="block text-xs font-bold text-gray-600 mb-1">Specifications & Description</label>
-              <textarea
-                rows={3}
-                placeholder="Product advantages... include detail features here"
-                value={newProdDesc}
-                onChange={(e) => setNewProdDesc(e.target.value)}
-                className="w-full bg-white border border-gray-200 rounded px-3 py-2 text-xs focus:ring-1 focus:ring-purple-500 focus:outline-none text-slate-800"
-              />
+            <div className="h-44 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={[
+                  { day: 'Mon', sales: 12 },
+                  { day: 'Tue', sales: 19 },
+                  { day: 'Wed', sales: 15 },
+                  { day: 'Thu', sales: 27 },
+                  { day: 'Fri', sales: 22 },
+                  { day: 'Sat', sales: 34 },
+                  { day: 'Sun', sales: 29 }
+                ]} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                  <XAxis dataKey="day" stroke="#9ca3af" fontSize={10} tickLine={false} />
+                  <YAxis stroke="#9ca3af" fontSize={10} tickLine={false} axisLine={false} />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '4px', fontSize: '11px' }}
+                    cursor={{ fill: 'rgba(0, 0, 0, 0.02)' }} 
+                  />
+                  <Bar dataKey="sales" fill="#111111" radius={[2, 2, 0, 0]} name="Orders Count" />
+                </BarChart>
+              </ResponsiveContainer>
             </div>
-
-            {/* Custom Interactive Settings Section from Screenshot 2 */}
-            <div className="border-t border-gray-100 pt-4 space-y-3.5">
-              
-              {/* Product Add-ons Toggle Row */}
-              <div className="space-y-0.5 flex justify-between items-start">
-                <div className="space-y-0.5 flex-1 pr-4">
-                  <span className="text-xs font-bold text-slate-800 block leading-tight">Product Add-ons</span>
-                  <p className="text-[10.5px] text-gray-400 font-normal leading-normal whitespace-pre-line">
-                    Upsell customers with product add-ons directly on the product page.
-                  </p>
-                </div>
-                
-                <button
-                  type="button"
-                  onClick={() => setShowAddonModal(!showAddonModal)}
-                  className="text-xs font-black tracking-wider text-[#7c3aed] hover:text-[#6d28d9] bg-purple-50/70 p-1 px-3 rounded uppercase border border-purple-100/40 cursor-pointer"
-                >
-                  {selectedAddons.length > 0 ? `ADD (${selectedAddons.length})` : 'ADD'}
-                </button>
-              </div>
-
-              {/* Add-ons Configuration Menu */}
-              {showAddonModal && (
-                <div className="bg-purple-50/20 border border-purple-100 rounded-lg p-2.5 space-y-2 mt-1 animate-fade-in">
-                  <span className="block text-[10px] font-black text-purple-850 uppercase tracking-wider">Configure upsell bundles</span>
-                  <div className="grid grid-cols-2 gap-2">
-                    {[
-                      { id: 'co-ord-socks', label: 'Chicago Varsity Crew Socks Set', price: '+ ₦1,800' },
-                      { id: 'care-wrap', label: 'Premium Birthday Care Wrap', price: '+ ₦1,500' },
-                      { id: 'priority-dispatch', label: 'VIP Priority Courier Route', price: '+ ₦2,500' },
-                      { id: 'warranty-extra', label: 'Quxba Extra Care Shield', price: '+ ₦4,000' }
-                    ].map((add) => {
-                      const isSel = selectedAddons.includes(add.id);
-                      return (
-                        <button
-                          key={add.id}
-                          type="button"
-                          onClick={() => {
-                            if (isSel) {
-                              setSelectedAddons(prev => prev.filter(i => i !== add.id));
-                            } else {
-                              setSelectedAddons(prev => [...prev, add.id]);
-                            }
-                          }}
-                          className={`p-2 rounded border text-left flex flex-col justify-between transition-all ${
-                            isSel ? 'bg-purple-50 border-purple-300 text-purple-950 shadow-xs' : 'bg-white border-gray-150 hover:bg-gray-50'
-                          }`}
-                        >
-                          <span className="text-[10px] font-black leading-tight block">{add.label}</span>
-                          <span className="text-[9.5px] text-[#7c3aed] font-bold block mt-1">{add.price}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              <hr className="border-gray-100/50" />
-
-              {/* Featured Product Switch Block */}
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5 flex-1 pr-6">
-                  <span className="text-xs font-bold text-slate-800 block leading-tight">Featured Product</span>
-                  <p className="text-[10.5px] text-gray-400 font-normal leading-normal">
-                    Featured Products can be displayed in Summary Blocks on your page.
-                  </p>
-                </div>
-                
-                {/* Switch Toggle matching mockup exactly */}
-                <button
-                  type="button"
-                  onClick={() => setIsFeatured(!isFeatured)}
-                  className={`w-11 h-6 flex items-center rounded-full p-1 cursor-pointer transition-colors duration-250 flex-shrink-0 ${
-                    isFeatured ? 'bg-[#7c3aed]' : 'bg-gray-300'
-                  }`}
-                  aria-label="Toggle featured listing status"
-                >
-                  <div className={`bg-white w-4.5 h-4.5 rounded-full shadow-sm transform duration-250 ${
-                    isFeatured ? 'translate-x-5' : 'translate-x-0'
-                  }`} />
-                </button>
-              </div>
-
-              <hr className="border-gray-100/50" />
-
-              {/* Publish directly to Homepage and Selected Category Toggle Switch */}
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5 flex-1 pr-6">
-                  <span className="text-xs font-bold text-slate-800 block leading-tight">Publish directly to Home Page</span>
-                  <p className="text-[10.5px] text-gray-400 font-normal leading-normal">
-                    Auto-approve and immediately display this new product on the Homepage under the selected category.
-                  </p>
-                </div>
-                
-                {/* Switch Toggle */}
-                <button
-                  type="button"
-                  id="direct-publish-toggle"
-                  onClick={() => setIsApprovedDirectly(!isApprovedDirectly)}
-                  className={`w-11 h-6 flex items-center rounded-full p-1 cursor-pointer transition-colors duration-250 flex-shrink-0 ${
-                    isApprovedDirectly ? 'bg-[#7c3aed]' : 'bg-gray-300'
-                  }`}
-                  aria-label="Toggle auto-approval and immediate homepage publish status"
-                >
-                  <div className={`bg-white w-4.5 h-4.5 rounded-full shadow-sm transform duration-250 ${
-                    isApprovedDirectly ? 'translate-x-5' : 'translate-x-0'
-                  }`} />
-                </button>
-              </div>
-
-              <hr className="border-gray-100/50" />
-
-              {/* Related Products Settings block */}
-              <div 
-                className="flex items-center justify-between cursor-pointer hover:bg-gray-50 p-1.5 -mx-1.5 rounded transition"
-                onClick={() => setShowRelatedModal(!showRelatedModal)}
-              >
-                <div className="space-y-0.5">
-                  <span className="text-xs font-bold text-slate-800 block leading-tight">Related Products</span>
-                  <span className="text-[10.5px] text-gray-400 font-normal leading-normal block">
-                    Showcase similar items on your Product Pages.
-                  </span>
-                </div>
-                {/* Chevron Right indicator matches mockup */}
-                <ChevronRight className="w-5 h-5 text-gray-400" />
-              </div>
-
-              {/* Related products selector dropdown */}
-              {showRelatedModal && (
-                <div className="bg-gray-50 border border-gray-250 rounded-lg p-2.5 mt-1 space-y-1.5 animate-fade-in">
-                  <span className="block text-[10px] font-black text-gray-500 uppercase">Link relevant items</span>
-                  <div className="space-y-1 max-h-32 overflow-y-auto">
-                    {products.filter(pr => pr.id !== 'custom-generating').slice(0, 4).map((pr) => {
-                      const isSel = selectedRelated.includes(pr.id);
-                      return (
-                        <button
-                          key={pr.id}
-                          type="button"
-                          onClick={() => {
-                            if (isSel) {
-                              setSelectedRelated(prev => prev.filter(i => i !== pr.id));
-                            } else {
-                              setSelectedRelated(prev => [...prev, pr.id]);
-                            }
-                          }}
-                          className={`w-full p-2 rounded text-left text-[11px] flex items-center justify-between border ${
-                            isSel ? 'bg-purple-50 border-purple-200 text-[#7c3aed] font-bold' : 'bg-white border-gray-150'
-                          }`}
-                        >
-                          <span className="truncate">{pr.name}</span>
-                          <span className="text-gray-400 text-[10px]">₦{pr.price.toLocaleString()}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              <hr className="border-gray-100/50" />
-
-              {/* Product Reviews setting strip */}
-              <div 
-                className="flex items-center justify-between cursor-pointer hover:bg-gray-50 p-1.5 -mx-1.5 rounded transition"
-                onClick={() => {
-                  alert("Product reviews automation rules are administered centrally. System checks reviews for spam keywords.");
-                }}
-              >
-                <div className="space-y-0.5">
-                  <span className="text-xs font-bold text-slate-800 block leading-tight">Product Reviews</span>
-                  <span className="text-[10.5px] text-gray-400 font-normal leading-normal block">
-                    Show customer reviews directly on all product pages. Manage this feature in Selling.
-                  </span>
-                </div>
-                {/* Diagonal Arrow Icon matches mockup 2 exactly */}
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-5 h-5 text-gray-400 flex-shrink-0">
-                  <line x1="7" y1="17" x2="17" y2="7"></line>
-                  <polyline points="7 7 17 7 17 17"></polyline>
-                </svg>
-              </div>
-
-            </div>
-
-            {/* Quick Merchant Tip Helper */}
-            <div className="bg-purple-50/70 p-3 rounded text-[11px] text-purple-900 space-y-1.5 font-medium border border-purple-100/80">
-              <span className="font-extrabold uppercase tracking-wider block text-[10px]">💡 PRE-LOADED SYSTEM TEMPLATES</span>
-              <p>Quickly select a verified template to showcase different categories:</p>
-              <div className="space-y-1 font-mono text-[9px] break-all bg-white/70 p-2 rounded border border-purple-100/50">
-                <button 
-                  type="button"
-                  onClick={() => {
-                    setNewProdName('Premium Double Door Refrigerator with Inverter');
-                    setNewProdCategory('Electronics & Appliances');
-                    setNewProdPrice('220000');
-                    setNewProdOldPrice('295050');
-                    setNewProdImageUrl('https://images.unsplash.com/photo-1571875257727-256c3a8428e8?auto=format&fit=crop&w=600&q=80');
-                    setNewProdDesc('Nexus 250L capacity eco inverter smart food-fresher refrigerator with supreme freezer layout.');
-                  }}
-                  className="block text-left hover:underline text-[#7c3aed] font-black"
-                >
-                  📋 Template: Refrigerator Appliances Set
-                </button>
-                <button 
-                  type="button"
-                  onClick={() => {
-                    setNewProdName('Superchill Turbo 1.5HP Split Air Conditioner');
-                    setNewProdCategory('Electronics & Appliances');
-                    setNewProdPrice('180000');
-                    setNewProdOldPrice('240000');
-                    setNewProdImageUrl('https://images.unsplash.com/photo-1585338107529-13afc5f02586?auto=format&fit=crop&w=600&q=80');
-                    setNewProdDesc('Rapid intelligent cooling split AC with active air filtration systems and whisper quiet bedroom performance.');
-                  }}
-                  className="block text-left hover:underline text-[#7c3aed] font-black mt-1"
-                >
-                  📋 Template: Air Conditioner Set
-                </button>
-                <button 
-                  type="button"
-                  onClick={() => {
-                    setNewProdImageUrl('chicago-32-jersey');
-                    setNewProdName('');
-                    setNewProdCategory('Fashion & Apparel');
-                    setUploadedImages(['chicago-32-jersey']);
-                  }}
-                  className="block text-left hover:underline text-[#7c3aed] font-black mt-1"
-                >
-                  📋 Template: Custom Chicago Varsity Dress
-                </button>
-              </div>
-            </div>
-
-            {formError && <p className="text-red-500 font-bold text-xs">{formError}</p>}
-            {formSuccess && <p className="text-green-600 font-bold text-xs">{formSuccess}</p>}
-
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full bg-[#7c3aed] hover:bg-purple-600 disabled:bg-purple-300 text-white py-2.5 rounded font-bold text-sm transition shadow duration-150 cursor-pointer text-center uppercase tracking-wider flex items-center justify-center gap-2"
-            >
-              {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
-              <span>{isSubmitting ? 'SUBMISSION IN PROGRESS...' : 'SUBMIT HOSTING LISTING'}</span>
-            </button>
-          </form>
-        </div>
-
-        {/* Right column: Current products list */}
-        <div className="lg:col-span-6 bg-white p-6 rounded-lg border border-gray-100 shadow-sm space-y-4">
-          <div>
-            <h3 className="text-sm font-extrabold text-gray-850 uppercase tracking-wide">My Hosted Listings</h3>
-            <p className="text-xs text-gray-500">Inventory directory hosted by {vendorName}.</p>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-gray-500">
-              <thead className="bg-gray-50 text-gray-700 font-bold uppercase border-b border-gray-100">
-                <tr>
-                  <th className="p-3">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (sortBy === 'name') {
-                          setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-                        } else {
-                          setSortBy('name');
-                          setSortOrder('asc');
-                        }
-                      }}
-                      className="flex items-center gap-1 font-extrabold uppercase text-gray-700 hover:text-[#7c3aed] transition cursor-pointer"
-                    >
-                      <span>Product Info</span>
-                      <span className="text-[10px] text-gray-400 font-mono">
-                        {sortBy === 'name' ? (sortOrder === 'asc' ? '▲' : '▼') : '↕'}
-                      </span>
-                    </button>
-                  </th>
-                  <th className="p-3">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (sortBy === 'price') {
-                          setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-                        } else {
-                          setSortBy('price');
-                          setSortOrder('asc');
-                        }
-                      }}
-                      className="flex items-center gap-1 font-extrabold uppercase text-gray-700 hover:text-[#7c3aed] transition cursor-pointer"
-                    >
-                      <span>Price</span>
-                      <span className="text-[10px] text-gray-400 font-mono">
-                        {sortBy === 'price' ? (sortOrder === 'asc' ? '▲' : '▼') : '↕'}
-                      </span>
-                    </button>
-                  </th>
-                  <th className="p-3">Status</th>
-                  <th className="p-3 text-right">Delete</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {sortedProducts.length === 0 ? (
+          {/* COMMERCE PRODUCTS DIRECTORY TABLE (SQUARESQUARE INSPIRED) */}
+          <div className="bg-white border border-gray-200 rounded shadow-xs overflow-hidden">
+            <div className="p-5 border-b border-gray-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+              <div>
+                <h3 className="text-xs font-black text-neutral-900 uppercase tracking-widest">Inventory Management ({myProducts.length} Items)</h3>
+                <p className="text-[11px] text-gray-400 mt-0.5">Squarespace Commerce product directory. Click edit to configure details.</p>
+              </div>
+              <button
+                onClick={handleCreateNewClick}
+                className="bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-black px-4 py-2 rounded uppercase tracking-wider transition duration-150 flex items-center gap-1.5 cursor-pointer shadow-xs"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add Product</span>
+              </button>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-[#fafafa] text-neutral-500 font-bold uppercase border-b border-gray-200">
                   <tr>
-                    <td colSpan={4} className="p-6 text-center text-gray-400 animate-pulse">No products listed by you yet. Use the left-hand form or AI Copilot to submit catalog.</td>
+                    <th className="p-4 font-semibold text-[10px] tracking-wider">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (sortBy === 'name') {
+                            setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+                          } else {
+                            setSortBy('name');
+                            setSortOrder('asc');
+                          }
+                        }}
+                        className="flex items-center gap-1 font-bold uppercase hover:text-black transition cursor-pointer"
+                      >
+                        <span>Product</span>
+                        <span className="text-[10px] text-gray-400 font-mono">
+                          {sortBy === 'name' ? (sortOrder === 'asc' ? '▲' : '▼') : '↕'}
+                        </span>
+                      </button>
+                    </th>
+                    <th className="p-4 font-semibold text-[10px] tracking-wider">SKU / Logistics</th>
+                    <th className="p-4 font-semibold text-[10px] tracking-wider">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (sortBy === 'price') {
+                            setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+                          } else {
+                            setSortBy('price');
+                            setSortOrder('asc');
+                          }
+                        }}
+                        className="flex items-center gap-1 font-bold uppercase hover:text-black transition cursor-pointer"
+                      >
+                        <span>Price</span>
+                        <span className="text-[10px] text-gray-400 font-mono">
+                          {sortBy === 'price' ? (sortOrder === 'asc' ? '▲' : '▼') : '↕'}
+                        </span>
+                      </button>
+                    </th>
+                    <th className="p-4 font-semibold text-[10px] tracking-wider">Stock Status</th>
+                    <th className="p-4 font-semibold text-[10px] tracking-wider">Storefront Tab</th>
+                    <th className="p-4 font-semibold text-[10px] tracking-wider text-right">Actions</th>
                   </tr>
-                ) : (
-                  sortedProducts.map((p) => (
-                    <tr key={p.id} className="hover:bg-slate-50/55 transition">
-                      <td className="p-3 flex items-center gap-2 max-w-[200px]">
-                        {p.imageUrl === 'chicago-32-jersey' ? (
-                          <div className="w-8 h-8 rounded border overflow-hidden bg-gray-50 flex items-center justify-center flex-shrink-0">
-                            <ChicagoVarsityJerseyDraw size="sm" />
-                          </div>
-                        ) : (
+                </thead>
+                <tbody className="divide-y divide-gray-200 text-gray-600 font-normal">
+                  {sortedProducts.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="p-10 text-center text-gray-400">
+                        No product offerings recorded currently. Click "+ Add Product" to model a luxurious Squarespace product sheet.
+                      </td>
+                    </tr>
+                  ) : (
+                    sortedProducts.map((p) => (
+                      <tr key={p.id} className="hover:bg-[#fcfcfc] transition">
+                        <td className="p-4 flex items-center gap-3 max-w-[240px]">
                           <img 
                             src={p.imageUrl} 
                             alt="" 
-                            className="w-8 h-8 object-contain rounded border bg-gray-50 flex-shrink-0"
+                            className="w-10 h-10 object-cover rounded border border-gray-200 bg-gray-50 flex-shrink-0"
                             referrerPolicy="no-referrer"
                           />
-                        )}
-                        <div className="truncate">
-                          <p className="font-extrabold text-slate-800 truncate leading-snug">{p.name}</p>
-                          <p className="text-[10px] text-gray-400 font-bold">{p.category}</p>
-                        </div>
-                      </td>
-                      <td className="p-3 font-semibold text-gray-900 whitespace-nowrap">₦{p.price.toLocaleString()}</td>
-                      <td className="p-3">
-                        {p.isApproved ? (
-                          <span className="bg-green-100 text-green-700 text-[10px] px-2 py-0.5 rounded-full font-bold">APPROVED & LIVE</span>
-                        ) : (
-                          <span className="bg-blue-100 text-blue-700 text-[10px] px-2 py-0.5 rounded-full font-bold">PENDING ADMIN</span>
-                        )}
-                      </td>
-                      <td className="p-3 text-right">
-                        <button 
-                          onClick={() => onDeleteProduct(p.id)}
-                          className="text-gray-400 hover:text-red-500 p-1.5 rounded transition cursor-pointer"
-                          aria-label="Delete layout product"
-                        >
-                          <Trash2 className="w-4.5 h-4.5" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                          <div className="truncate">
+                            <p className="font-bold text-neutral-900 truncate">{p.name}</p>
+                            <p className="text-[9px] text-[#7c3aed] uppercase font-bold tracking-wider mt-0.5">ID: {p.id}</p>
+                          </div>
+                        </td>
+                        <td className="p-4 font-mono text-[10px] text-gray-400">
+                          <div>{p.specifications?.['Origin'] || 'QUX-GEN'}</div>
+                          <div className="text-[9px] mt-0.5">{p.specifications?.['Dimensions'] || 'N/A'}</div>
+                        </td>
+                        <td className="p-4 font-bold text-neutral-900 whitespace-nowrap">₦{p.price.toLocaleString()}</td>
+                        <td className="p-4 font-bold">
+                          {p.isApproved ? (
+                            <span className="bg-emerald-50 text-emerald-700 text-[10px] px-2 py-0.5 rounded border border-emerald-200 uppercase tracking-wide">Public & Live</span>
+                          ) : (
+                            <span className="bg-amber-50 text-amber-700 text-[10px] px-2 py-0.5 rounded border border-amber-200 uppercase tracking-wide">Awaiting review</span>
+                          )}
+                        </td>
+                        <td className="p-4 text-neutral-800 font-semibold">{p.category}</td>
+                        <td className="p-4 text-right space-x-2 whitespace-nowrap">
+                          <button 
+                            onClick={() => handleEditClick(p)}
+                            className="text-neutral-700 hover:text-black hover:bg-neutral-100 font-bold border border-neutral-200 rounded p-1 px-2.5 text-xs transition inline-flex items-center gap-1 uppercase tracking-wider cursor-pointer"
+                          >
+                            Edit
+                          </button>
+                          <button 
+                            onClick={() => onDeleteProduct(p.id)}
+                            className="text-gray-400 hover:text-red-600 p-1.5 rounded transition cursor-pointer inline-block"
+                            aria-label="Delete listing"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-
-      </div>
-
-      {/* Dynamic Image Slot Uploader Modal */}
-      {activeImageSlot !== null && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 font-sans backdrop-blur-xs animate-fade-in" id="image-slot-modal">
-          <div className="bg-white rounded-xl shadow-xl border border-gray-100 max-w-md w-full p-5 space-y-4 relative">
-            <div className="flex items-center justify-between pb-2 border-b border-gray-150">
-              <h3 className="font-extrabold text-sm sm:text-base text-gray-800 uppercase tracking-tight">
-                Add / Edit Photo (Picture {activeImageSlot + 1})
-              </h3>
-              <button 
-                onClick={() => setActiveImageSlot(null)}
-                className="text-gray-400 hover:text-gray-700 p-2 hover:bg-gray-100 rounded-lg transition cursor-pointer"
+        </>
+      ) : (
+        /* ==========================================================================
+           2. SQUARESQUARE-INSPIRED COMMERCE PRODUCT PAGE EDITOR (/config/commerce)
+           ========================================================================== */
+        <div className="bg-[#fafafa] -mx-4 sm:-mx-8 p-4 sm:p-8 rounded-xl border border-gray-200 shadow-xs space-y-6 animate-fade-in text-left">
+          
+          {/* Header Action Bar */}
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-4 border-b border-gray-200 gap-4">
+            <div className="flex items-center gap-3">
+              <button
                 type="button"
+                onClick={() => {
+                  setIsEditorOpen(false);
+                  setEditingProductId(null);
+                }}
+                className="text-gray-400 hover:text-black text-xs font-black tracking-widest uppercase flex items-center gap-1 transition"
               >
-                <X className="w-4 h-4" />
+                <span>✕ Cancel</span>
+              </button>
+              <div className="h-4 w-[1px] bg-gray-300 hidden sm:block" />
+              <div>
+                <span className="text-[10px] font-black text-neutral-400 tracking-widest uppercase block leading-none">Commerce / Product Editor</span>
+                <span className="text-sm font-semibold text-neutral-900 mt-1 block">
+                  {editingProductId ? 'Configure Existing Listing' : 'Create Physical Product Sheets'}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 w-full sm:w-auto">
+              {/* Type tag representation */}
+              <span className="text-[9px] font-black uppercase tracking-widest bg-neutral-200 border border-neutral-300 px-2 py-1 select-none text-neutral-600 hidden md:inline-block">
+                Physical Product Type
+              </span>
+              <button
+                type="button"
+                disabled={isSubmitting}
+                onClick={handleCreateProduct}
+                className="flex-1 sm:flex-initial bg-neutral-900 hover:bg-neutral-800 disabled:bg-neutral-400 text-white text-xs font-black px-6 py-2.5 uppercase tracking-widest rounded transition flex items-center justify-center gap-2 cursor-pointer shadow-xs"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Synchronizing...</span>
+                  </>
+                ) : (
+                  <span>{editingProductId ? 'Save Product Sheet' : 'Publish Commerce Listing'}</span>
+                )}
               </button>
             </div>
+          </div>
 
-            {/* Option 1: File Uploader from Local Machine */}
-            <div className="space-y-1.5">
-              <span className="block text-[10px] font-black text-slate-500 uppercase tracking-widest">Option 1: Upload from local device</span>
-              <label className="flex flex-col items-center justify-center border-2 border-dashed border-gray-200 hover:border-[#7c3aed] rounded-lg p-5 cursor-pointer hover:bg-purple-50/10 transition group">
-                <Plus className="w-6 h-6 text-gray-400 group-hover:text-[#7c3aed] mb-1.5 transition" />
-                <span className="text-xs font-black text-gray-750 group-hover:text-[#7c3aed] transition">Choose Image File</span>
-                <span className="text-[10px] text-gray-400 font-medium text-center">Click to select an image from your computer/phone</span>
-                <input 
-                  type="file" 
-                  accept="image/*" 
-                  className="hidden" 
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                      const reader = new FileReader();
-                      reader.onload = () => {
-                        if (typeof reader.result === 'string') {
-                          const newImages = [...uploadedImages];
-                          newImages[activeImageSlot] = reader.result;
-                          setUploadedImages(newImages);
-                          if (activeImageSlot === 0) {
-                            setNewProdImageUrl(reader.result);
-                          }
-                          setActiveImageSlot(null);
-                        }
-                      };
-                      reader.readAsDataURL(file);
-                    }
-                  }}
-                />
-              </label>
+          <form onSubmit={handleCreateProduct} className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            
+            {/* LEFT COLUMN: Main specifications details (7 cols out of 12) */}
+            <div className="lg:col-span-7 space-y-6">
+              
+              {/* Card 1: Core Product Title & Writing Description */}
+              <div className="bg-white p-6 border border-gray-200 rounded shadow-xs space-y-4">
+                <div>
+                  <label className="text-[10px] font-black tracking-widest text-[#111] uppercase block mb-1">Product Title</label>
+                  <input
+                    type="text"
+                    required
+                    maxLength={100}
+                    placeholder="Add a product name... (e.g., Chicago 32 Crimson Varsity Hoodie)"
+                    value={newProdName}
+                    onChange={(e) => setNewProdName(e.target.value)}
+                    className="w-full bg-white text-neutral-900 font-medium text-lg leading-snug border-b border-gray-200 focus:border-neutral-950 py-1 focus:outline-none transition-all placeholder:text-gray-300"
+                  />
+                  <p className="text-[9.5px] text-gray-400 mt-1">Unique catalog name visible in standard search listings.</p>
+                </div>
+
+                <div className="pt-2">
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="text-[10px] font-black tracking-widest text-[#111] uppercase block">Description / Specifications</label>
+                    <span className="text-[9px] text-[#7c3aed] font-bold">Standard Markdown supported</span>
+                  </div>
+                  {/* Styled like rich text top bar */}
+                  <div className="bg-neutral-50 px-2.5 py-1.5 border border-gray-200 border-b-0 flex gap-4 text-xs text-gray-400 select-none">
+                    <span className="hover:text-black cursor-pointer font-bold">B</span>
+                    <span className="hover:text-black cursor-pointer italic">I</span>
+                    <span className="hover:text-black cursor-pointer underline">U</span>
+                    <span className="hover:text-black cursor-pointer">H1</span>
+                    <span className="hover:text-black cursor-pointer">H2</span>
+                    <span className="hover:text-black cursor-pointer">🔗 Link</span>
+                    <span className="hover:text-black cursor-pointer">≣ Bullet</span>
+                  </div>
+                  <textarea
+                    rows={5}
+                    placeholder="Detail the product and item highlights here. Provide specification lists, origin, guarantee terms, and structural parameters..."
+                    value={newProdDesc}
+                    onChange={(e) => setNewProdDesc(e.target.value)}
+                    className="w-full bg-white text-xs text-neutral-800 leading-relaxed border border-gray-200 p-3 focus:outline-none focus:border-neutral-950 rounded-b transition"
+                  />
+                </div>
+              </div>
+
+              {/* Card 2: Interactive Dynamic Multi-Photo Gallery (5 slots) */}
+              <div className="bg-white p-6 border border-gray-200 rounded shadow-xs space-y-4">
+                <div>
+                  <h4 className="text-[10px] font-black tracking-widest text-[#111] uppercase">Product Media Assets ({productImages.filter(Boolean).length}/5)</h4>
+                  <p className="text-[11px] text-gray-400 mt-0.5">Drag & drop files or click an asset slot to link photo sources.</p>
+                </div>
+
+                {/* 5-Slot Grid matching Squarespace layout */}
+                <div className="grid grid-cols-5 gap-2 sm:gap-3.5">
+                  {productImages.map((img, idx) => {
+                    const isActive = idx === activeImageSlot;
+                    return (
+                      <div
+                        key={idx}
+                        onClick={() => setActiveImageSlot(idx)}
+                        className={`relative aspect-square rounded border cursor-pointer select-none overflow-hidden transition flex flex-col justify-between items-center p-1.5 ${
+                          isActive 
+                            ? 'border-neutral-900 bg-neutral-50 ring-2 ring-neutral-100' 
+                            : 'border-dashed border-gray-200 bg-gray-50 hover:bg-neutral-50/55 hover:border-gray-400'
+                        }`}
+                      >
+                        {img ? (
+                          <>
+                            <img src={img} alt="" className="h-full w-full object-cover rounded" referrerPolicy="no-referrer" />
+                            <div className="absolute inset-0 bg-black/60 opacity-0 hover:opacity-100 flex flex-col items-center justify-center transition gap-1.5 p-1">
+                              <button 
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setFullscreenPreviewImage(img);
+                                }}
+                                className="bg-white/95 hover:bg-white text-[#7c3aed] text-[8px] font-black uppercase px-2 py-0.5 rounded cursor-pointer tracking-wider"
+                                title="Zoom Full Screen"
+                              >
+                                🔍 Preview
+                              </button>
+                              <div className="flex gap-1 items-center justify-center">
+                                {idx > 0 && (
+                                  <button 
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      // rotate to index 0 (make primary)
+                                      const updated = [...productImages];
+                                      const currentPrimary = updated[0];
+                                      updated[0] = img;
+                                      updated[idx] = currentPrimary;
+                                      setProductImages(updated);
+                                      if (updated[0]) setNewProdImageUrl(updated[0]);
+                                    }}
+                                    className="bg-white/95 hover:bg-white text-neutral-800 text-[8px] font-bold uppercase px-1 py-0.5 rounded cursor-pointer"
+                                    title="Make Primary image"
+                                  >
+                                    ★ Front
+                                  </button>
+                                )}
+                                <button 
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleClearImageInSlot(idx);
+                                  }}
+                                  className="bg-red-600 hover:bg-red-700 text-white p-0.5 rounded-sm cursor-pointer"
+                                  title="Clear photo slot"
+                                >
+                                  <X className="w-2.5 h-2.5" />
+                                </button>
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="flex flex-col items-center justify-center m-auto text-center space-y-1">
+                            <Plus className={`w-4 h-4 ${isActive ? 'text-neutral-900' : 'text-gray-300'}`} />
+                            <span className="text-[8px] font-bold text-gray-400">ADD {idx === 0 ? 'FRONT' : `PICTURE`}</span>
+                          </div>
+                        )}
+                        <span className="absolute bottom-1 right-1 text-[7px] bg-black/80 font-black px-1 py-0.2 text-white/90 rounded">
+                          {idx === 0 ? 'MAIN' : `#${idx + 1}`}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Sub Asset Action Drawer panel (dependent on selected slot) */}
+                <div className="bg-neutral-50/50 border border-gray-200/80 rounded p-4 space-y-4">
+                  <div className="flex items-center justify-between border-b border-gray-150 pb-2">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-neutral-700">
+                      Configure asset media for <strong className="text-black">Picture #{activeImageSlot + 1}</strong> {activeImageSlot === 0 && '(Primary/Main Showcase Display)'}
+                    </span>
+                    {productImages[activeImageSlot] && (
+                      <button
+                        type="button"
+                        onClick={() => handleClearImageInSlot(activeImageSlot)}
+                        className="text-red-500 hover:text-red-700 text-[9px] font-black uppercase tracking-wider cursor-pointer"
+                      >
+                        ✕ Remove Photo
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Method A: Paste URL */}
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-black uppercase tracking-wider text-gray-400 block">Method A: Web image url source</label>
+                      <input
+                        type="text"
+                        placeholder="https://images.unsplash.com/... or relative URL"
+                        value={productImages[activeImageSlot] || ''}
+                        onChange={(e) => handleApplyImageInSlot(e.target.value)}
+                        className="w-full bg-white text-xs border border-gray-200 rounded p-2 focus:outline-none focus:border-black font-mono transition"
+                      />
+                    </div>
+
+                    {/* Method B: Upload file */}
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-black uppercase tracking-wider text-gray-400 block">Method B: Local computer upload</label>
+                      <label className="w-full flex items-center justify-center bg-white hover:bg-neutral-50 border border-gray-200 rounded p-1.5 focus:outline-none text-xs font-semibold text-gray-700 cursor-pointer transition">
+                        <span>Select image files (Multiple allowed)</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          className="hidden"
+                          onChange={async (e) => {
+                            const files = e.target.files;
+                            if (files && files.length > 0) {
+                              const updated = [...productImages];
+                              let currentIdx = activeImageSlot;
+                              for (let i = 0; i < files.length; i++) {
+                                if (currentIdx >= 5) break;
+                                const file = files[i];
+                                const base64 = await new Promise<string>((resolve) => {
+                                  const reader = new FileReader();
+                                  reader.onload = () => {
+                                    if (typeof reader.result === 'string') {
+                                      resolve(reader.result);
+                                    } else {
+                                      resolve('');
+                                    }
+                                  };
+                                  reader.readAsDataURL(file);
+                                });
+                                if (base64) {
+                                  updated[currentIdx] = base64;
+                                  currentIdx++;
+                                }
+                              }
+                              setProductImages(updated);
+                              if (updated[0]) {
+                                setNewProdImageUrl(updated[0]);
+                              }
+                            }
+                          }}
+                        />
+                      </label>
+                    </div>
+                  </div>
+
+
+
+                </div>
+              </div>
+
+              {/* Card 3: Squarespace Inventory & Logistics details */}
+              <div className="bg-white p-6 border border-gray-200 rounded shadow-xs space-y-4">
+                <div>
+                  <h4 className="text-[10px] font-black tracking-widest text-[#111] uppercase">Inventory & Logistics Settings</h4>
+                  <p className="text-[11px] text-gray-400 mt-0.5">Control stock holding and freight calculation specs.</p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-b border-gray-100 pb-4">
+                  {/* SKU Input */}
+                  <div>
+                    <div className="flex justify-between items-center mb-1.5">
+                      <label className="block text-[9.5px] font-black text-gray-500 uppercase">SKU (Stock Keeping Unit)</label>
+                      {inventorySku && (
+                        <span className={`text-[9.5px] font-bold uppercase tracking-wider ${isSkuValid(inventorySku) ? 'text-emerald-600' : 'text-rose-600'}`}>
+                          {isSkuValid(inventorySku) ? '✓ Valid Format' : '✗ Invalid Format'}
+                        </span>
+                      )}
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="e.g. JER-CHIC-32-L"
+                      value={inventorySku}
+                      onChange={(e) => setInventorySku(e.target.value.toUpperCase())}
+                      className={`w-full bg-white border rounded px-2.5 py-2 text-xs focus:ring-1 focus:outline-none font-bold font-mono transition ${
+                        !inventorySku 
+                          ? 'border-gray-200 focus:ring-black focus:border-black' 
+                          : isSkuValid(inventorySku) 
+                            ? 'border-emerald-300 focus:ring-emerald-500 focus:border-emerald-500 bg-emerald-50/25' 
+                            : 'border-rose-300 focus:ring-rose-500 focus:border-rose-500 bg-rose-50/25'
+                      }`}
+                    />
+                    {inventorySku && !isSkuValid(inventorySku) && (
+                      <p className="text-[9.5px] text-rose-500 font-bold mt-1 leading-snug">
+                        Must follow prefix-numeric-suffix format (e.g., QUX-450-XL).
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Stock Limit Option (Unlimited vs numerical state) */}
+                  <div>
+                    <label className="block text-[9.5px] font-black text-gray-500 uppercase mb-1.5">Available Stock Quantity</label>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setIsUnlimitedQty(true)}
+                        className={`flex-1 py-1.5 px-3 border rounded text-xs font-bold uppercase transition ${
+                          isUnlimitedQty ? 'bg-black text-white border-black' : 'bg-white text-gray-500 border-gray-250 hover:bg-gray-50'
+                        }`}
+                      >
+                        Unlimited
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsUnlimitedQty(false)}
+                        className={`flex-1 py-1.5 px-3 border rounded text-xs font-bold uppercase transition ${
+                          !isUnlimitedQty ? 'bg-black text-white border-black' : 'bg-white text-gray-500 border-gray-250 hover:bg-gray-50'
+                        }`}
+                      >
+                        Set Limit
+                      </button>
+                    </div>
+
+                    {!isUnlimitedQty && (
+                      <input
+                        type="number"
+                        min={0}
+                        placeholder="Stock limit (e.g., 30)"
+                        value={inventoryQty}
+                        onChange={(e) => setInventoryQty(e.target.value)}
+                        className="w-full bg-white border border-gray-200 rounded mt-2 px-2.5 py-1.5 text-xs text-slate-800 font-bold focus:ring-1 focus:ring-black focus:outline-none animate-fade-in"
+                      />
+                    )}
+                  </div>
+                </div>
+
+                {/* Weights and cargo dimensions */}
+                <div className="space-y-2.5 pt-1">
+                  <span className="block text-[10px] font-black text-neutral-800 uppercase tracking-wider">Weight & Dimensions (For Shipping Rates)</span>
+                  
+                  <div className="grid grid-cols-4 gap-2">
+                    <div>
+                      <label className="block text-[8px] font-black text-gray-400 uppercase mb-1">Weight (lbs)</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. 1.5"
+                        value={inventoryWeight}
+                        onChange={(e) => setInventoryWeight(e.target.value)}
+                        className="w-full text-center bg-white border border-gray-200 rounded p-1 text-xs font-semibold text-slate-800 focus:outline-none focus:border-black"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[8px] font-black text-gray-400 uppercase mb-1">Length (in)</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. 12"
+                        value={inventoryLength}
+                        onChange={(e) => setInventoryLength(e.target.value)}
+                        className="w-full text-center bg-white border border-gray-200 rounded p-1 text-xs font-semibold text-slate-800 focus:outline-none focus:border-black"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[8px] font-black text-gray-400 uppercase mb-1">Width (in)</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. 8"
+                        value={inventoryWidth}
+                        onChange={(e) => setInventoryWidth(e.target.value)}
+                        className="w-full text-center bg-white border border-gray-200 rounded p-1 text-xs font-semibold text-slate-800 focus:outline-none focus:border-black"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[8px] font-black text-gray-400 uppercase mb-1">Height (in)</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. 4"
+                        value={inventoryHeight}
+                        onChange={(e) => setInventoryHeight(e.target.value)}
+                        className="w-full text-center bg-white border border-gray-200 rounded p-1 text-xs font-semibold text-slate-800 focus:outline-none focus:border-black"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Card 4: Product Options & Variants */}
+              <div className="bg-white p-6 border border-gray-200 rounded shadow-xs space-y-4">
+                <div>
+                  <h4 className="text-[10px] font-black tracking-widest text-[#111] uppercase">Product Options & Variants</h4>
+                  <p className="text-[11px] text-gray-400 mt-0.5">Allow buyers to choose multiple versions of this item, like sizes or colors.</p>
+                </div>
+
+                {/* Current options configured */}
+                {productOptions.length > 0 ? (
+                  <div className="space-y-3">
+                    <span className="block text-[9.5px] font-black text-gray-500 uppercase">Product Options</span>
+                    <div className="space-y-2">
+                      {productOptions.map((opt) => (
+                        <div key={opt.name} className="flex items-center justify-between bg-neutral-50 p-2.5 rounded border border-gray-200 text-xs text-slate-800">
+                          <div>
+                            <span className="font-bold text-neutral-800 uppercase text-[10px] mr-2">{opt.name}:</span>
+                            <span className="text-gray-600 font-mono text-[11px] bg-white px-2 py-1 rounded border border-gray-150">
+                              {opt.values.join(', ')}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveOption(opt.name)}
+                            className="text-red-500 hover:text-red-700 text-[10px] font-bold uppercase transition scale-95"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="border border-dashed border-gray-200 rounded-lg p-5 text-center">
+                    <p className="text-xs text-gray-400">No product options defined yet. Add options to automatically generate customizable variations.</p>
+                  </div>
+                )}
+
+                {/* Add Option Trigger button and form */}
+                {!showAddOptionForm ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowAddOptionForm(true)}
+                    className="w-full py-2.5 px-4 bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-bold uppercase tracking-wider rounded transition flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Add Color, Size, etc. Option</span>
+                  </button>
+                ) : (
+                  <div className="bg-neutral-50 p-4 rounded border border-gray-200 space-y-4 animate-fade-in text-xs">
+                    <div className="flex justify-between items-center border-b border-gray-200 pb-1.5">
+                      <span className="font-black text-neutral-800 uppercase tracking-widest text-[9.5px]">Create Product Option</span>
+                      <button
+                        type="button"
+                        onClick={() => setShowAddOptionForm(false)}
+                        className="text-gray-400 hover:text-black cursor-pointer"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <div className="space-y-3 col-span-1 text-slate-800">
+                      <div>
+                        <label className="block text-[8.5px] font-bold text-gray-400 uppercase mb-1">Option Name</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Size, Color, Capacity"
+                          value={newOptionName}
+                          onChange={(e) => setNewOptionName(e.target.value)}
+                          className="w-full bg-white border border-gray-200 rounded px-2 py-1.5 text-xs text-slate-800 font-bold focus:ring-1 focus:ring-black focus:outline-none"
+                        />
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          {['Size', 'Color', 'Material', 'Capacity'].map(sug => (
+                            <button
+                              key={sug}
+                              type="button"
+                              onClick={() => setNewOptionName(sug)}
+                              className="px-2 py-0.5 bg-white border border-gray-150 hover:border-gray-400 rounded text-[9.5px] text-gray-500 font-semibold cursor-pointer"
+                            >
+                              + {sug}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[8.5px] font-bold text-gray-400 uppercase mb-1">Comma-Separated Values</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. S, M, L or Red, Blue, Black"
+                          value={newOptionValues}
+                          onChange={(e) => setNewOptionValues(e.target.value)}
+                          className="w-full bg-white border border-gray-200 rounded px-2 py-1.5 text-xs text-slate-800 font-semibold focus:ring-1 focus:ring-black focus:outline-none placeholder:text-gray-300"
+                        />
+                        <p className="text-[9px] text-gray-400 mt-1 leading-snug">Press comma (,) to separate values.</p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleAddOption}
+                        className="w-full py-2 bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-bold uppercase tracking-wide rounded text-[10px] transition cursor-pointer"
+                      >
+                        Generate Variants Combinations
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Generated Combinations / Variants list */}
+                {productVariants.length > 0 && (
+                  <div className="pt-2 space-y-3">
+                    <span className="block text-[9.5px] font-black text-gray-500 uppercase">Interactive Variants List ({productVariants.length})</span>
+                    <p className="text-[9.5px] text-gray-400">Configure custom selling prices (₦), stock limits, and unique SKUs for each variant combination.</p>
+                    
+                    <div className="overflow-x-auto max-w-full rounded border border-gray-150">
+                      <table className="w-full text-xs text-left text-gray-500 font-sans divide-y divide-gray-100 table-auto min-w-[400px]">
+                        <thead className="bg-[#fcfcfc] text-[9px] font-black uppercase text-neutral-700 tracking-wider">
+                          <tr>
+                            <th className="px-3 py-2 text-[8px]">Combination</th>
+                            <th className="px-3 py-2 text-[8px] w-28">Price (₦)</th>
+                            <th className="px-3 py-2 text-[8px] w-20">Stock</th>
+                            <th className="px-3 py-2 text-[8px]">SKU Option</th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-100">
+                          {productVariants.map((v) => {
+                            const titleStr = Object.entries(v.options).map(([k, val]) => `${k}: ${val}`).join(', ');
+                            return (
+                              <tr key={v.id} className="hover:bg-neutral-50/50">
+                                <td className="px-3 py-1.5 font-bold text-neutral-800 text-[10px]">
+                                  {titleStr}
+                                </td>
+                                <td className="px-3 py-1.5">
+                                  <div className="relative">
+                                    <span className="absolute left-1.5 top-1 text-gray-400 text-[10px]">₦</span>
+                                    <input
+                                      type="number"
+                                      value={v.price}
+                                      onChange={(e) => handleUpdateVariantValue(v.id, 'price', e.target.value)}
+                                      className="bg-white border border-gray-200 rounded pl-4 pr-1 py-1 text-left font-black text-neutral-900 text-[11px] w-full focus:outline-none focus:border-black"
+                                    />
+                                  </div>
+                                </td>
+                                <td className="px-3 py-1.5">
+                                  <input
+                                    type="number"
+                                    value={v.stock}
+                                    onChange={(e) => handleUpdateVariantValue(v.id, 'stock', e.target.value)}
+                                    className="bg-white border border-gray-200 rounded px-1.5 py-1 text-center font-bold text-gray-800 text-[11px] w-full focus:outline-none focus:border-black"
+                                  />
+                                </td>
+                                <td className="px-3 py-1.5">
+                                  <input
+                                    type="text"
+                                    value={v.sku || ''}
+                                    onChange={(e) => handleUpdateVariantValue(v.id, 'sku', e.target.value)}
+                                    className="bg-white border border-gray-250 rounded px-1.5 py-1 text-left font-mono text-[10px] w-full focus:outline-none focus:border-black"
+                                  />
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+
             </div>
 
-            {/* Option 2: Paste Image URL */}
-            <div className="space-y-1.5">
-              <span className="block text-[10px] font-black text-slate-500 uppercase tracking-widest">Option 2: Paste Web Image URL</span>
-              <div className="flex gap-2">
-                <input 
-                  type="text"
-                  placeholder="https://images.unsplash.com/... or any URL"
-                  defaultValue={uploadedImages[activeImageSlot] && !uploadedImages[activeImageSlot]?.startsWith('data:') ? (uploadedImages[activeImageSlot] as string) : ''}
-                  id="modal-image-url"
-                  className="flex-1 text-xs border border-gray-200 rounded p-2 focus:outline-none focus:ring-1 focus:ring-[#7c3aed] focus:border-[#7c3aed] bg-slate-50"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      const inputEl = document.getElementById('modal-image-url') as HTMLInputElement;
-                      if (inputEl) {
-                        const url = inputEl.value.trim();
-                        if (url) {
-                          const newImages = [...uploadedImages];
-                          newImages[activeImageSlot] = url;
-                          setUploadedImages(newImages);
-                          if (activeImageSlot === 0) {
-                            setNewProdImageUrl(url);
-                          }
-                          setActiveImageSlot(null);
+            {/* RIGHT COLUMN: Sidebar controls/specifiers (5 cols out of 12) */}
+            <div className="lg:col-span-5 space-y-6">
+              
+              {/* Card A: Financial Pricing Panel */}
+              <div className="bg-white p-6 border border-gray-200 rounded shadow-xs space-y-4">
+                <div>
+                  <h4 className="text-[10px] font-black tracking-widest text-[#111] uppercase">Financial Pricing</h4>
+                  <p className="text-[11px] text-gray-400 mt-0.5">Define sales costs and toggle promotional tags.</p>
+                </div>
+
+                <div className="space-y-3.5">
+                  {/* Retail Base Price */}
+                  <div>
+                    <label className="block text-[9.5px] font-black text-gray-500 uppercase mb-1">Regular Retail Price (₦)</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2 text-xs font-bold text-gray-400">₦</span>
+                      <input
+                        type="number"
+                        placeholder="18900"
+                        value={newProdOldPrice}
+                        onChange={(e) => setNewProdOldPrice(e.target.value)}
+                        className="w-full bg-[#fcfcfc] border border-gray-200 rounded pl-7 pr-3 py-2 text-xs focus:ring-1 focus:ring-black focus:outline-none text-slate-400 transition"
+                      />
+                    </div>
+                    <p className="text-[8px] text-gray-400 mt-0.5">Standard non-discounted catalog price.</p>
+                  </div>
+
+                  {/* Active Sale Price */}
+                  <div>
+                    <label className="block text-[9.5px] font-black text-gray-500 uppercase mb-1">Active Selling Price (₦)</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2 text-xs font-bold text-emerald-600">₦</span>
+                      <input
+                        type="number"
+                        required
+                        placeholder="14500"
+                        value={newProdPrice}
+                        onChange={(e) => setNewProdPrice(e.target.value)}
+                        className="w-full bg-white border border-gray-200 rounded pl-7 pr-3 py-2 text-xs focus:ring-1 focus:ring-black focus:outline-none text-neutral-900 font-extrabold transition"
+                      />
+                    </div>
+                    <p className="text-[8px] text-gray-400 mt-0.5">Real value billed to purchasing customers.</p>
+                  </div>
+
+                  {/* Dynamic discount calculator */}
+                  {newProdPrice && newProdOldPrice && parseFloat(newProdOldPrice) > parseFloat(newProdPrice) && (
+                    <div className="bg-emerald-50 border border-emerald-100 rounded p-2.5 text-center text-emerald-800 text-[10.5px] font-bold animate-fade-in">
+                      Promotional Discount Calculated: -{Math.round(((parseFloat(newProdOldPrice) - parseFloat(newProdPrice)) / parseFloat(newProdOldPrice)) * 100)}% on checkout!
+                    </div>
+                  )}
+
+                  {/* On Sale switch representation */}
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="text-xs font-semibold text-neutral-700">Display "On Sale" slash ribbon</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        // toggle original pricing relative calculation
+                        if (newProdPrice) {
+                          const base = parseFloat(newProdPrice);
+                          setNewProdOldPrice(newProdOldPrice ? '' : String(Math.round(base * 1.25)));
+                        } else {
+                          setNewProdOldPrice(newProdOldPrice ? '' : '15000');
                         }
-                      }
-                    }
-                  }}
-                />
+                      }}
+                      className={`w-10 h-5.5 flex items-center rounded-full p-0.5 cursor-pointer transition-colors duration-200 ${
+                        newProdOldPrice ? 'bg-neutral-800' : 'bg-gray-300'
+                      }`}
+                    >
+                      <div className={`bg-white w-4.5 h-4.5 rounded-full shadow-xs transform duration-200 ${
+                        newProdOldPrice ? 'translate-x-4.5' : 'translate-x-0'
+                      }`} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card B: Store visibility / approval toggles */}
+              <div className="bg-white p-6 border border-gray-200 rounded shadow-xs space-y-4">
+                <div>
+                  <h4 className="text-[10px] font-black tracking-widest text-[#111] uppercase">Storefront Visibility</h4>
+                  <p className="text-[11px] text-gray-400 mt-0.5">Control live directory exposure and queue approval status.</p>
+                </div>
+
+                {/* Squarespace classic selector button-tabs */}
+                <div className="space-y-3">
+                  <div className="flex flex-col gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setIsApprovedDirectly(true)}
+                      className={`w-full text-left p-3 rounded border text-xs flex justify-between items-center transition ${
+                        isApprovedDirectly 
+                          ? 'border-neutral-900 bg-neutral-900 text-white font-bold' 
+                          : 'border-gray-200 bg-white text-gray-600 hover:bg-neutral-50'
+                      }`}
+                    >
+                      <div className="text-left font-serif">
+                        <p className="text-xs uppercase font-sans tracking-wide">Public / Direct Publish</p>
+                        <p className={`text-[10px] ${isApprovedDirectly ? 'text-white/70' : 'text-gray-400'}`}>Immediately visible to global commerce searches.</p>
+                      </div>
+                      {isApprovedDirectly && <Check className="w-4 h-4" />}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setIsApprovedDirectly(false)}
+                      className={`w-full text-left p-3 rounded border text-xs flex justify-between items-center transition ${
+                        !isApprovedDirectly 
+                          ? 'border-neutral-900 bg-neutral-900 text-white font-bold' 
+                          : 'border-gray-200 bg-white text-gray-600 hover:bg-neutral-50'
+                      }`}
+                    >
+                      <div className="text-left font-serif">
+                        <p className="text-xs uppercase font-sans tracking-wide">Save Draft (Pending)</p>
+                        <p className={`text-[10px] ${!isApprovedDirectly ? 'text-white/70' : 'text-gray-400'}`}>Requires official review prior to storefront publish.</p>
+                      </div>
+                      {!isApprovedDirectly && <Check className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card C: Store Departments & Categorizations */}
+              <div className="bg-white p-6 border border-gray-200 rounded shadow-xs space-y-4">
+                <div>
+                  <h4 className="text-[10px] font-black tracking-widest text-[#111] uppercase">Categorization</h4>
+                  <p className="text-[11px] text-gray-400 mt-0.5">Assign item to specific department filters.</p>
+                </div>
+
+                <div>
+                  <label className="block text-[9.5px] font-black text-gray-500 uppercase mb-1.5">Product Department</label>
+                  <select
+                    value={newProdCategory}
+                    onChange={(e) => setNewProdCategory(e.target.value)}
+                    className="w-full bg-white border border-gray-250 rounded px-2.5 py-2 text-xs focus:ring-1 focus:ring-black focus:outline-none font-semibold text-neutral-800"
+                  >
+                    <option>Fashion & Apparel</option>
+                    <option>Electronics & Appliances</option>
+                    <option>Phones & Tablets</option>
+                    <option>Computers & Accessories</option>
+                    <option>Supermarket & Groceries</option>
+                    <option>Health & Beauty</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Card D: Marketing & Upsells bundling */}
+              <div className="bg-white p-6 border border-gray-200 rounded shadow-xs space-y-4">
+                <div>
+                  <h4 className="text-[10px] font-black tracking-widest text-[#111] uppercase">Marketing Options</h4>
+                  <p className="text-[11px] text-gray-400 mt-0.5">Boost average order value via target bundling options.</p>
+                </div>
+
+                <div className="space-y-3.5 pt-1">
+                  
+                  {/* Toggle Add-ons upsell */}
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <span className="text-xs font-bold text-slate-800 block leading-tight">Upsell Bundles</span>
+                      <p className="text-[10px] text-gray-400 leading-snug">Present companion items on the checkout sheet.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddonModal(!showAddonModal)}
+                      className="text-[10px] font-black tracking-wider text-[#7c3aed] uppercase border border-purple-200 bg-purple-50 px-2.5 py-1 rounded cursor-pointer transition hover:bg-purple-100"
+                    >
+                      {selectedAddons.length > 0 ? `LINKED (${selectedAddons.length})` : 'EDIT ADD-ONS'}
+                    </button>
+                  </div>
+
+                  {showAddonModal && (
+                    <div className="bg-[#fafafa] border border-gray-200 rounded p-2.5 space-y-2 mt-1 animate-fade-in grid grid-cols-2 gap-2">
+                      {[
+                        { id: 'co-ord-socks', label: 'Chicago Varsity Socks Set', price: '+ ₦1,800' },
+                        { id: 'care-wrap', label: 'Premium Birthday Care Wrap', price: '+ ₦1,500' },
+                        { id: 'priority-dispatch', label: 'VIP Priority Courier Route', price: '+ ₦2,500' },
+                        { id: 'warranty-extra', label: 'Quxba Extra Care Shield', price: '+ ₦4,000' }
+                      ].map((add) => {
+                        const isSel = selectedAddons.includes(add.id);
+                        return (
+                          <button
+                            key={add.id}
+                            type="button"
+                            onClick={() => {
+                              if (isSel) {
+                                setSelectedAddons(prev => prev.filter(i => i !== add.id));
+                              } else {
+                                setSelectedAddons(prev => [...prev, add.id]);
+                              }
+                            }}
+                            className={`p-2 rounded border text-left flex flex-col justify-between transition-all select-none ${
+                              isSel ? 'bg-purple-50 border-purple-300 text-purple-950 shadow-xs font-bold' : 'bg-white border-gray-150 hover:bg-gray-50'
+                            }`}
+                          >
+                            <span className="text-[9px] leading-tight block">{add.label}</span>
+                            <span className="text-[9px] text-[#7c3aed] font-bold block mt-1">{add.price}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  <hr className="border-gray-100" />
+
+                  {/* Toggle Related items linking */}
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <span className="text-xs font-bold text-slate-800 block leading-tight">Related Products</span>
+                      <p className="text-[10px] text-gray-400 leading-snug">Attach relevant inventory suggestions below.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowRelatedModal(!showRelatedModal)}
+                      className="text-[10px] font-black tracking-wider text-[#7c3aed] uppercase border border-purple-200 bg-purple-50 px-2.5 py-1 rounded cursor-pointer transition hover:bg-purple-100"
+                    >
+                      {selectedRelated.length > 0 ? `LINKED (${selectedRelated.length})` : 'EDIT RELATED'}
+                    </button>
+                  </div>
+
+                  {showRelatedModal && (
+                    <div className="bg-[#fafafa] border border-gray-200 rounded p-2.5 mt-1 space-y-1.5 animate-fade-in">
+                      <span className="block text-[8px] font-black text-gray-400 uppercase">Select items to correlate</span>
+                      <div className="space-y-1 max-h-24 overflow-y-auto">
+                        {products.slice(0, 5).map((pr) => {
+                          const isSel = selectedRelated.includes(pr.id);
+                          return (
+                            <button
+                              key={pr.id}
+                              type="button"
+                              onClick={() => {
+                                if (isSel) {
+                                  setSelectedRelated(prev => prev.filter(i => i !== pr.id));
+                                } else {
+                                  setSelectedRelated(prev => [...prev, pr.id]);
+                                }
+                              }}
+                              className={`w-full p-1.5 rounded text-left text-[10px] flex items-center justify-between border ${
+                                isSel ? 'bg-purple-50 border-purple-200 text-[#7c3aed] font-bold' : 'bg-white border-gray-150'
+                              }`}
+                            >
+                              <span className="truncate">{pr.name}</span>
+                              <span className="text-gray-400 text-[9px] font-mono">₦{pr.price.toLocaleString()}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  <hr className="border-gray-100" />
+
+                  {/* Switch toggle featured product */}
+                  <div className="flex items-center justify-between pt-1">
+                    <div className="space-y-0.5">
+                      <span className="text-xs font-semibold text-neutral-700">Flag as Featured Listing</span>
+                      <p className="text-[10px] text-gray-400">Position this product inside storefront banner layouts.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsFeatured(!isFeatured)}
+                      className={`w-10 h-5.5 flex items-center rounded-full p-0.5 cursor-pointer transition-colors duration-200 ${
+                        isFeatured ? 'bg-neutral-800' : 'bg-gray-300'
+                      }`}
+                    >
+                      <div className={`bg-white w-4.5 h-4.5 rounded-full shadow-xs transform duration-200 ${
+                        isFeatured ? 'translate-x-4.5' : 'translate-x-0'
+                      }`} />
+                    </button>
+                  </div>
+
+                </div>
+              </div>
+
+            </div>
+
+            {/* General Submission Information Notification and Feedback messages */}
+            <div className="lg:col-span-12 border-t border-gray-200 pt-4">
+              {formError && (
+                <div className="bg-red-50 border border-red-200 rounded p-3 mb-3 text-red-700 text-xs font-bold animate-fade-in flex items-center gap-2">
+                  <span>⚠️</span>
+                  <span>{formError}</span>
+                </div>
+              )}
+              {formSuccess && (
+                <div className="bg-emerald-50 border border-emerald-200 rounded p-3 mb-3 text-emerald-800 text-xs font-bold animate-fade-in flex items-center gap-2">
+                  <span className="animate-bounce">✓</span>
+                  <span>{formSuccess}</span>
+                </div>
+              )}
+
+              <div className="flex flex-col sm:flex-row justify-end gap-3.5 pt-2">
                 <button
                   type="button"
                   onClick={() => {
-                    const inputEl = document.getElementById('modal-image-url') as HTMLInputElement;
-                    if (inputEl) {
-                      const url = inputEl.value.trim();
-                      if (url) {
-                        const newImages = [...uploadedImages];
-                        newImages[activeImageSlot] = url;
-                        setUploadedImages(newImages);
-                        if (activeImageSlot === 0) {
-                          setNewProdImageUrl(url);
-                        }
-                        setActiveImageSlot(null);
-                      }
-                    }
+                    setIsEditorOpen(false);
+                    setEditingProductId(null);
                   }}
-                  className="bg-[#7c3aed] hover:bg-purple-600 text-white text-xs font-black px-4 py-2 rounded-lg transition uppercase cursor-pointer"
+                  className="bg-gray-100 hover:bg-gray-200 text-neutral-800 text-xs font-black px-6 py-3 uppercase tracking-widest rounded transition cursor-pointer"
                 >
-                  Apply
+                  Discard Changes
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-black px-8 py-3 uppercase tracking-widest rounded transition flex items-center justify-center gap-2 cursor-pointer shadow"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Saving to Inventory...</span>
+                    </>
+                  ) : (
+                    <span>Synchronize to Quxba Storefront</span>
+                  )}
                 </button>
               </div>
             </div>
 
-            {/* Option 3: Select Stock Photo */}
-            <div className="space-y-1.5">
-              <span className="block text-[10px] font-black text-slate-500 uppercase tracking-widest">Option 3: Quick Premium Stock Photos</span>
-              <div className="grid grid-cols-4 gap-2 max-h-[120px] overflow-y-auto pr-1">
-                {[
-                  { name: 'Varsity Jacket', url: 'https://images.unsplash.com/photo-1556905055-8f358a7a47b2?auto=format&fit=crop&w=400&q=80' },
-                  { name: 'Sling Bag', url: 'https://images.unsplash.com/photo-1511556532299-8f662fc26c06?auto=format&fit=crop&w=400&q=80' },
-                  { name: 'Red Sneakers', url: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=400&q=80' },
-                  { name: 'White Sneakers', url: 'https://images.unsplash.com/photo-1549298916-b41d501d3772?auto=format&fit=crop&w=400&q=80' },
-                  { name: 'Smartwatch', url: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=400&q=80' },
-                  { name: 'Wireless Headphones', url: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=400&q=80' },
-                  { name: 'Bluetooth Speaker', url: 'https://images.unsplash.com/photo-1608043152269-423dbba4e7e1?auto=format&fit=crop&w=400&q=80' },
-                  { name: 'Sunglasses', url: 'https://images.unsplash.com/photo-1511499767150-a48a237f0083?auto=format&fit=crop&w=400&q=80' },
-                  { name: 'T-Shirts Set', url: 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=400&q=80' },
-                  { name: 'Kitchen Blender', url: 'https://images.unsplash.com/photo-1578643463396-0997cb5328c1?auto=format&fit=crop&w=400&q=80' },
-                  { name: 'Juice Bottle', url: 'https://images.unsplash.com/photo-1505252585461-04db1ebb846d?auto=format&fit=crop&w=400&q=80' },
-                  { name: 'Cosmetics', url: 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?auto=format&fit=crop&w=400&q=80' }
-                ].map((stock, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => {
-                      const newImages = [...uploadedImages];
-                      newImages[activeImageSlot] = stock.url;
-                      setUploadedImages(newImages);
-                      if (activeImageSlot === 0) {
-                        setNewProdImageUrl(stock.url);
-                      }
-                      setActiveImageSlot(null);
-                    }}
-                    className="group relative aspect-square rounded border border-gray-150 hover:border-[#7c3aed] hover:ring-2 hover:ring-purple-100 overflow-hidden bg-gray-50 flex items-center justify-center p-1 cursor-pointer transition select-none"
-                  >
-                    <img src={stock.url} alt={stock.name} className="max-h-[90%] max-w-[90%] object-contain" referrerPolicy="no-referrer" />
-                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition duration-150">
-                      <span className="text-[8px] text-white font-extrabold uppercase text-center leading-none px-1">{stock.name}</span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
+          </form>
+        </div>
+      )}
 
-            <div className="flex justify-end pt-2 border-t border-gray-150">
-              <button
-                type="button"
-                onClick={() => setActiveImageSlot(null)}
-                className="bg-gray-150 hover:bg-gray-200 text-gray-700 text-xs font-black px-4 py-2 rounded-lg transition uppercase cursor-pointer"
-              >
-                Cancel
-              </button>
+      {/* Full-Screen Quality Verification Image Modal */}
+      {fullscreenPreviewImage && (
+        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black/95 backdrop-blur-md p-4 animate-fade-in font-sans">
+          <div className="absolute inset-0 cursor-pointer" onClick={() => setFullscreenPreviewImage(null)} />
+          <div className="relative z-10 max-w-4xl w-full max-h-[85vh] flex flex-col items-center">
+            <button
+              onClick={() => setFullscreenPreviewImage(null)}
+              className="absolute -top-14 right-2 sm:right-0 bg-white hover:bg-neutral-100 text-black px-4 py-2 rounded-full z-20 transition shadow-lg shrink-0 cursor-pointer font-black text-xs uppercase hover:scale-[1.02] active:scale-95"
+            >
+              Close Asset Preview ×
+            </button>
+            <div className="bg-white/5 p-1 rounded-xl shadow-2xl border border-white/10 max-w-full">
+              <img
+                src={fullscreenPreviewImage}
+                alt="Quality Verification Preview"
+                className="max-h-[75vh] max-w-full object-contain rounded-lg shadow-xl"
+                referrerPolicy="no-referrer"
+              />
             </div>
+            <p className="text-white/80 text-[10px] font-bold mt-4 bg-white/10 border border-white/5 backdrop-blur-sm px-3.5 py-1.5 rounded uppercase tracking-widest leading-none">
+              High-Fidelity Asset Quality Verification Mode
+            </p>
           </div>
         </div>
       )}

@@ -1,3 +1,18 @@
+export interface ProductOption {
+  name: string;
+  values: string[];
+}
+
+export interface ProductVariant {
+  id: string;
+  options: Record<string, string>; // e.g. { "Size": "M", "Color": "Blue" }
+  price: number;
+  originalPrice?: number;
+  stock: number;
+  sku?: string;
+  imageUrl?: string;
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -7,6 +22,7 @@ export interface Product {
   discount: number;
   imageUrl: string;
   imageUrls?: string[];
+  fromDevice?: string[];
   rating: number;
   reviewsCount: number;
   description: string;
@@ -25,11 +41,14 @@ export interface Product {
     comment: string;
     date: string;
   }>;
+  options?: ProductOption[];
+  variants?: ProductVariant[];
 }
 
 export interface CartItem {
   product: Product;
   quantity: number;
+  selectedOptions?: Record<string, string>;
 }
 
 export interface SupportMessage {

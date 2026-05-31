@@ -1,5 +1,5 @@
 import React from 'react';
-import { Heart, Star } from 'lucide-react';
+import { Heart, Star, Share2, Eye } from 'lucide-react';
 import { Product } from '../types';
 
 interface ProductCardProps {
@@ -8,8 +8,7 @@ interface ProductCardProps {
   onAddToCart: (p: Product) => void;
   onToggleWishlist: (p: Product) => void;
   onClick: (p: Product) => void;
-  onAddToCompare?: (p: Product) => void;
-  isInComparisonList?: boolean;
+  onQuickView: (p: Product) => void;
   key?: React.Key;
 }
 
@@ -19,8 +18,7 @@ export default function ProductCard({
   onAddToCart,
   onToggleWishlist,
   onClick,
-  onAddToCompare,
-  isInComparisonList
+  onQuickView
 }: ProductCardProps) {
   // Format price in Nigerian Naira
   const formatNaira = (amount: number) => {
@@ -160,7 +158,20 @@ export default function ProductCard({
         </div>
 
         {/* Actions Button Bar */}
-        <div className="flex gap-1.5 mt-auto">
+        <div className="flex gap-1.5 mt-auto items-center">
+          {/* Quick View Button */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onQuickView(product);
+            }}
+            className="bg-neutral-100 hover:bg-neutral-200 text-neutral-800 p-2 rounded text-xs font-bold transition-all duration-150 flex items-center justify-center hover:shadow-xs active:scale-[0.98] cursor-pointer"
+            title="Quick View Product"
+          >
+            <Eye className="w-3.5 h-3.5" />
+          </button>
+
           <button
             type="button"
             onClick={() => onAddToCart(product)}
@@ -168,23 +179,60 @@ export default function ProductCard({
           >
             <span>Add to cart</span>
           </button>
-          {onAddToCompare && (
+
+          {/* Share Button with hovering dropdown menu */}
+          <div className="relative group/share">
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                onAddToCompare(product);
+                if (navigator.share) {
+                  navigator.share({
+                    title: product.name,
+                    text: product.description,
+                    url: window.location.origin + '#product-' + product.id
+                  }).catch(() => {});
+                }
               }}
-              className={`px-2 py-2 rounded text-[10px] font-black border transition duration-150 flex items-center justify-center cursor-pointer ${
-                isInComparisonList 
-                  ? 'bg-purple-100 hover:bg-purple-200 border-[#7c3aed] text-[#7c3aed]' 
-                  : 'bg-white hover:bg-gray-50 border-gray-300 text-gray-700'
-              }`}
-              title="Compare product"
+              className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 p-2 rounded text-xs font-bold transition-all duration-150 flex items-center justify-center hover:shadow-xs active:scale-[0.98] cursor-pointer"
+              title="Share Product"
             >
-              {isInComparisonList ? '✓' : 'Compare'}
+              <Share2 className="w-3.5 h-3.5" />
             </button>
-          )}
+            {/* Share dropdown triggered by hover */}
+            <div className="absolute right-0 bottom-full mb-1 bg-white border border-gray-200 rounded-lg shadow-xl p-2 hidden group-hover/share:flex flex-col gap-1.5 z-30 min-w-[130px] text-[10px] scale-95 origin-bottom-right transition-all">
+              <span className="text-[8px] text-gray-400 font-extrabold uppercase px-1 pb-1 border-b border-gray-100 block">Share on:</span>
+              <a
+                href={`https://api.whatsapp.com/send?text=${encodeURIComponent('Check out ' + product.name + ' on Quxba: ' + window.location.origin + '#product-' + product.id)}`}
+                target="_blank"
+                rel="noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="flex items-center gap-1.5 p-1 hover:bg-emerald-50 rounded text-emerald-700 transition font-bold"
+              >
+                <span>WhatsApp</span>
+              </a>
+              <a
+                href={`https://twitter.com/intent/tweet?text=${encodeURIComponent('Check out ' + product.name + ' on QuxbaExpress Anniversary Sale! ' + window.location.origin + '#product-' + product.id)}`}
+                target="_blank"
+                rel="noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="flex items-center gap-1.5 p-1 hover:bg-blue-50 rounded text-blue-500 transition font-bold"
+              >
+                <span>Twitter / X</span>
+              </a>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigator.clipboard.writeText(window.location.origin + '#product-' + product.id);
+                  alert('Product link copied to clipboard!');
+                }}
+                className="flex items-center gap-1.5 p-1 hover:bg-neutral-100 rounded text-neutral-700 transition font-bold w-full text-left cursor-pointer"
+              >
+                <span>Copy Link</span>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

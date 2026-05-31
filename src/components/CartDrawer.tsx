@@ -6,8 +6,8 @@ interface CartDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   cart: CartItem[];
-  onUpdateQty: (pId: string, qty: number) => void;
-  onRemove: (pId: string) => void;
+  onUpdateQty: (pId: string, qty: number, selectedOptions?: Record<string, string>) => void;
+  onRemove: (pId: string, selectedOptions?: Record<string, string>) => void;
   onClearCart: () => void;
   onPlaceOrder: (order: Order) => void;
   onToggleView: (view: 'storefront' | 'orders') => void;
@@ -95,7 +95,20 @@ export default function CartDrawer({
 
   if (!isOpen) return null;
 
-  const subtotal = cart.reduce((acc, item) => acc + (item.product.price * item.quantity), 0);
+  const getCartItemPrice = (item: CartItem): number => {
+    if (item.selectedOptions && item.product.variants && item.product.variants.length > 0) {
+      const match = item.product.variants.find((v) => {
+        const o1 = v.options || {};
+        const o2 = item.selectedOptions || {};
+        return Object.keys(o1).every((k) => o1[k] === o2[k]) &&
+               Object.keys(o2).every((k) => o1[k] === o2[k]);
+      });
+      if (match) return match.price;
+    }
+    return item.product.price;
+  };
+
+  const subtotal = cart.reduce((acc, item) => acc + (getCartItemPrice(item) * item.quantity), 0);
   const deliveryFee = deliveryMethod === 'express' ? 4500 : 1200;
   const grandTotal = subtotal + deliveryFee - discountAmount;
 
@@ -180,48 +193,66 @@ export default function CartDrawer({
               <>
                 {/* List Items of products */}
                 <div className="p-6 divide-y divide-gray-100 overflow-y-auto max-h-[50vh]">
-                  {cart.map((item) => (
-                    <div key={item.product.id} className="py-4 flex gap-4">
-                      <img 
-                        src={item.product.imageUrl} 
-                        alt={item.product.name} 
-                        className="w-16 h-16 object-contain rounded border border-gray-100 bg-gray-50 flex-shrink-0"
-                        referrerPolicy="no-referrer"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <h4 className="text-xs md:text-sm font-semibold text-gray-800 truncate">{item.product.name}</h4>
-                        <p className="text-xs text-purple-600 font-bold mt-0.5">{item.product.sellerName}</p>
-                        <p className="text-sm font-extrabold text-[#7c3aed] mt-1">{formatNaira(item.product.price)}</p>
-                        
-                        {/* Control Quantity Indicators */}
-                        <div className="flex items-center justify-between mt-2.5">
-                          <div className="flex items-center border border-gray-200 rounded-md bg-white overflow-hidden shadow-sm">
+                  {cart.map((item, index) => {
+                    const comboKey = item.selectedOptions 
+                      ? `${item.product.id}_${Object.entries(item.selectedOptions).map(([k, v]) => `${k}_${v}`).join('_')}`
+                      : item.product.id;
+                    const resolvedPrice = getCartItemPrice(item);
+                    return (
+                      <div key={comboKey + '_' + index} className="py-4 flex gap-4">
+                        <img 
+                          src={item.product.imageUrl} 
+                          alt={item.product.name} 
+                          className="w-16 h-16 object-contain rounded border border-gray-100 bg-gray-50 flex-shrink-0"
+                          referrerPolicy="no-referrer"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <h4 className="text-xs md:text-sm font-semibold text-gray-800 truncate">{item.product.name}</h4>
+                          <p className="text-xs text-purple-600 font-bold mt-0.5">{item.product.sellerName}</p>
+                          
+                          {/* Display Selected Options */}
+                          {item.selectedOptions && Object.keys(item.selectedOptions).length > 0 && (
+                            <div className="flex gap-1.5 mt-1 flex-wrap">
+                              {Object.entries(item.selectedOptions).map(([keyName, keyVal]) => (
+                                <span key={keyName} className="text-[9px] font-black bg-neutral-100 text-neutral-600 px-1.5 py-0.5 rounded tracking-wider uppercase border border-neutral-200">
+                                  {keyName}: {keyVal}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+
+                          <p className="text-sm font-extrabold text-[#7c3aed] mt-1">{formatNaira(resolvedPrice)}</p>
+                          
+                          {/* Control Quantity Indicators */}
+                          <div className="flex items-center justify-between mt-2.5">
+                            <div className="flex items-center border border-gray-200 rounded-md bg-white overflow-hidden shadow-sm">
+                              <button 
+                                onClick={() => onUpdateQty(item.product.id, Math.max(1, item.quantity - 1), item.selectedOptions)}
+                                className="px-2 py-1 hover:bg-gray-50 text-gray-500 hover:text-gray-800 transition shadow-xs"
+                              >
+                                <Minus className="w-3 h-3" />
+                              </button>
+                              <span className="px-3 py-0.5 text-xs font-bold text-gray-800">{item.quantity}</span>
+                              <button 
+                                onClick={() => onUpdateQty(item.product.id, item.quantity + 1, item.selectedOptions)}
+                                className="px-2 py-1 hover:bg-gray-50 text-gray-500 hover:text-gray-800 transition shadow-xs"
+                              >
+                                <Plus className="w-3 h-3" />
+                              </button>
+                            </div>
+
                             <button 
-                              onClick={() => onUpdateQty(item.product.id, Math.max(1, item.quantity - 1))}
-                              className="px-2 py-1 hover:bg-gray-50 text-gray-500 hover:text-gray-800 transition"
+                              onClick={() => onRemove(item.product.id, item.selectedOptions)}
+                              className="text-red-500 hover:underline flex items-center gap-1 text-xs font-semibold hover:bg-red-50/50 px-2 py-1 rounded"
                             >
-                              <Minus className="w-3 h-3" />
-                            </button>
-                            <span className="px-3 py-0.5 text-xs font-bold text-gray-800">{item.quantity}</span>
-                            <button 
-                              onClick={() => onUpdateQty(item.product.id, item.quantity + 1)}
-                              className="px-2 py-1 hover:bg-gray-50 text-gray-500 hover:text-gray-800 transition"
-                            >
-                              <Plus className="w-3 h-3" />
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>Remove</span>
                             </button>
                           </div>
-
-                          <button 
-                            onClick={() => onRemove(item.product.id)}
-                            className="text-red-500 hover:underline flex items-center gap-1 text-xs font-semibold hover:bg-red-50 px-2 py-1 rounded"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                            <span>Remove</span>
-                          </button>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 {/* Subtotal, Coupon, Checkout segment */}

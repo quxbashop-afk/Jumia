@@ -11,6 +11,7 @@ import ProductCard from './components/ProductCard';
 import CartDrawer from './components/CartDrawer';
 import WishlistDrawer from './components/WishlistDrawer';
 import ProductDetailModal from './components/ProductDetailModal';
+import QuickViewModal from './components/QuickViewModal';
 import { 
   SellerDashboard, 
   AdminDashboard, 
@@ -381,24 +382,10 @@ export default function App() {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isWishlistOpen, setIsWishlistOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
 
-  const [comparisonList, setComparisonList] = useState<Product[]>([]);
   const [showPassword, setShowPassword] = useState(false);
   const [isAuthSubmitting, setIsAuthSubmitting] = useState(false);
-
-  const handleToggleComparison = (product: Product) => {
-    setComparisonList((prev) => {
-      const exists = prev.some((p) => p.id === product.id);
-      if (exists) {
-        return prev.filter((p) => p.id !== product.id);
-      } else {
-        if (prev.length >= 4) {
-          return [...prev.slice(1), product];
-        }
-        return [...prev, product];
-      }
-    });
-  };
 
   const handleAddReview = async (productId: string, rating: number, comment: string, userName: string) => {
     const prod = products.find(p => p.id === productId);
@@ -441,31 +428,59 @@ export default function App() {
   /* ==========================================================================
      Cart & Wishlist Logic Handles
      ========================================================================== */
-  const handleAddToCart = (product: Product) => {
+  const handleAddToCart = (product: Product, selectedOptions?: Record<string, string>) => {
     setCart((prev) => {
-      const exists = prev.find((item) => item.product.id === product.id);
+      const exists = prev.find((item) => {
+        if (item.product.id !== product.id) return false;
+        const o1 = item.selectedOptions || {};
+        const o2 = selectedOptions || {};
+        const keys1 = Object.keys(o1);
+        const keys2 = Object.keys(o2);
+        if (keys1.length !== keys2.length) return false;
+        return keys1.every((key) => o1[key] === o2[key]);
+      });
+
       if (exists) {
-        return prev.map((item) =>
-          item.product.id === product.id
+        return prev.map((item) => {
+          const o1 = item.selectedOptions || {};
+          const o2 = selectedOptions || {};
+          const isSame = item.product.id === product.id &&
+            Object.keys(o1).length === Object.keys(o2).length &&
+            Object.keys(o1).every((key) => o1[key] === o2[key]);
+          return isSame
             ? { ...item, quantity: item.quantity + 1 }
-            : item
-        );
+            : item;
+        });
       }
-      return [...prev, { product, quantity: 1 }];
+      return [...prev, { product, quantity: 1, selectedOptions }];
     });
     setIsCartOpen(true);
   };
 
-  const handleUpdateCartQty = (productId: string, quantity: number) => {
+  const handleUpdateCartQty = (productId: string, quantity: number, selectedOptions?: Record<string, string>) => {
     setCart((prev) =>
-      prev.map((item) =>
-        item.product.id === productId ? { ...item, quantity } : item
-      )
+      prev.map((item) => {
+        const o1 = item.selectedOptions || {};
+        const o2 = selectedOptions || {};
+        const isSame = item.product.id === productId &&
+          Object.keys(o1).length === Object.keys(o2).length &&
+          Object.keys(o1).every((key) => o1[key] === o2[key]);
+        return isSame ? { ...item, quantity } : item;
+      })
     );
   };
 
-  const handleRemoveFromCart = (productId: string) => {
-    setCart((prev) => prev.filter((item) => item.product.id !== productId));
+  const handleRemoveFromCart = (productId: string, selectedOptions?: Record<string, string>) => {
+    setCart((prev) => 
+      prev.filter((item) => {
+        const o1 = item.selectedOptions || {};
+        const o2 = selectedOptions || {};
+        const isSame = item.product.id === productId &&
+          Object.keys(o1).length === Object.keys(o2).length &&
+          Object.keys(o1).every((key) => o1[key] === o2[key]);
+        return !isSame;
+      })
+    );
   };
 
   const handleClearCart = () => {
@@ -1148,8 +1163,7 @@ export default function App() {
                                   onAddToCart={handleAddToCart}
                                   onToggleWishlist={handleToggleWishlist}
                                   onClick={(prod) => setSelectedProduct(prod)}
-                                  onAddToCompare={handleToggleComparison}
-                                  isInComparisonList={comparisonList.some((compProd) => compProd.id === p.id)}
+                                  onQuickView={(prod) => setQuickViewProduct(prod)}
                                 />
                               ))}
                             </div>
@@ -1210,8 +1224,7 @@ export default function App() {
                                         onAddToCart={handleAddToCart}
                                         onToggleWishlist={handleToggleWishlist}
                                         onClick={(prod) => setSelectedProduct(prod)}
-                                        onAddToCompare={handleToggleComparison}
-                                        isInComparisonList={comparisonList.some((compProd) => compProd.id === p.id)}
+                                        onQuickView={(prod) => setQuickViewProduct(prod)}
                                       />
                                     ))}
                                   </div>
@@ -1318,7 +1331,6 @@ export default function App() {
             <h4 className="text-sm font-bold text-white uppercase tracking-wider">Help & Resources</h4>
             <ul className="space-y-2 text-xs text-gray-400">
               <li><button onClick={() => setCurrentView('support')} className="hover:text-white transition">Live Support Chat</button></li>
-              <li><button onClick={() => setCurrentView('orders')} className="hover:text-white transition">Track Anniversary Package</button></li>
               <li><button onClick={() => setSelectedCategory('All Categories')} className="hover:text-white transition">Return Guidelines</button></li>
               <li><span className="text-gray-500">Service Hours: 24/7 Fast Help Room</span></li>
             </ul>
@@ -1328,7 +1340,6 @@ export default function App() {
             <h4 className="text-sm font-bold text-white uppercase tracking-wider">Partner with Quxba</h4>
             <ul className="space-y-2 text-xs text-gray-400">
               <li><button onClick={() => setCurrentView('seller')} className="hover:text-white transition font-bold text-purple-400">Sell on Quxba (Seller Zone)</button></li>
-              <li><button onClick={() => setCurrentView('admin')} className="hover:text-white transition font-bold text-purple-400">Admin Control Center</button></li>
               <li><span className="text-gray-500">Hub Pick-up Joint Partner</span></li>
               <li><span className="text-gray-500">Logistics & Rider Contractor</span></li>
             </ul>
@@ -1394,6 +1405,16 @@ export default function App() {
         isInWishlist={wishlist.some(w => w.id === selectedProduct?.id)}
         onAddReview={handleAddReview}
         currentUser={currentUser}
+      />
+
+      <QuickViewModal
+        product={quickViewProduct}
+        isOpen={!!quickViewProduct}
+        onClose={() => setQuickViewProduct(null)}
+        onAddToCart={handleAddToCart}
+        onToggleWishlist={handleToggleWishlist}
+        isInWishlist={quickViewProduct ? wishlist.some(w => w.id === quickViewProduct.id) : false}
+        onViewFullDetails={(prod) => setSelectedProduct(prod)}
       />
 
       {/* Quxba Style Floating Mobile Capsule (Sort by ⇅ | Filter ☰) */}
@@ -1922,95 +1943,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Product Comparison Drawer at the bottom */}
-      {comparisonList.length > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-purple-200 shadow-[0_-10px_25px_rgba(0,0,0,0.1)] p-4 max-h-[40vh] overflow-y-auto">
-          <div className="max-w-7xl mx-auto font-sans">
-            <div className="flex items-center justify-between mb-3 pb-2 border-b border-gray-100">
-              <div className="flex items-center gap-2">
-                <span className="bg-[#7c3aed] text-white text-xs font-black px-2 py-0.5 rounded-full">
-                  {comparisonList.length}
-                </span>
-                <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider">Product Comparison</h3>
-              </div>
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => setComparisonList([])}
-                  className="text-[10px] text-red-500 hover:text-red-700 font-extrabold uppercase tracking-wider transition underline cursor-pointer"
-                >
-                  Clear All
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setComparisonList([])}
-                  className="text-gray-400 hover:text-gray-600 font-bold p-1 hover:bg-gray-150 rounded-full cursor-pointer transition"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
 
-            {/* Grid structure of comparing fields */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {comparisonList.map((p) => (
-                <div key={p.id} className="relative bg-slate-50/50 p-2.5 rounded-lg border border-gray-150/50 flex flex-col justify-between text-xs space-y-2">
-                  <button
-                    type="button"
-                    onClick={() => handleToggleComparison(p)}
-                    className="absolute top-1 right-1 text-gray-400 hover:text-gray-600 p-0.5 hover:bg-gray-200 rounded-full cursor-pointer transition"
-                    title="Remove item"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-
-                  <div className="flex items-center gap-2 pr-4">
-                    <img 
-                      src={p.imageUrl} 
-                      alt={p.name} 
-                      className="w-10 h-10 object-contain rounded bg-white border p-0.5 flex-shrink-0" 
-                      referrerPolicy="no-referrer"
-                    />
-                    <div className="min-w-0">
-                      <h4 className="font-bold text-gray-800 truncate text-[10px]">{p.name}</h4>
-                      <p className="text-[#7c3aed] font-black text-[10px]">₦{p.price.toLocaleString()}</p>
-                    </div>
-                  </div>
-
-                  <div className="border-t border-gray-150/40 pt-1.5 space-y-0.5 text-[9px]">
-                    <div className="flex justify-between">
-                      <span className="text-gray-400 font-bold uppercase text-[8px]">Category</span>
-                      <span className="font-bold text-gray-700 truncate max-w-[90px]">{p.category}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400 font-bold uppercase text-[8px]">Brand</span>
-                      <span className="font-bold text-gray-700 truncate max-w-[90px]">{p.brand || 'Quxba'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400 font-bold uppercase text-[8px]">Stock Status</span>
-                      <span className={`font-black uppercase text-[8px] ${p.stock < 5 ? 'text-red-650' : 'text-green-650'}`}>
-                        {p.stock < 5 ? `Low (${p.stock})` : 'In Stock'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400 font-bold uppercase text-[8px]">Rating</span>
-                      <span className="font-bold text-gray-700">★ {p.rating} ({p.reviewsCount})</span>
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => handleAddToCart(p)}
-                    className="w-full bg-[#7c3aed] hover:bg-[#6d28d9] text-white py-1 rounded text-[9px] font-black uppercase tracking-wider transition duration-150 cursor-pointer"
-                  >
-                    Add to Cart
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
 
     </div>
   );

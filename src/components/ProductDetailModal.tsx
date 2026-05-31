@@ -5,7 +5,7 @@ import { Product } from '../types';
 interface ProductDetailModalProps {
   product: Product | null;
   onClose: () => void;
-  onAddToCart: (p: Product) => void;
+  onAddToCart: (p: Product, selectedOptions?: Record<string, string>) => void;
   onToggleWishlist: (p: Product) => void;
   isInWishlist: boolean;
   onAddReview?: (productId: string, rating: number, comment: string, userName: string) => Promise<void>;
@@ -32,9 +32,37 @@ export default function ProductDetailModal({
   const [reviewName, setReviewName] = React.useState('');
   const [reviewSubmitting, setReviewSubmitting] = React.useState(false);
 
+  // Options & Variants selections
+  const [selectedOptions, setSelectedOptions] = React.useState<Record<string, string>>({});
+
+  const currentVariant = React.useMemo(() => {
+    if (!product || !product.variants || product.variants.length === 0) return null;
+    return product.variants.find((v) => {
+      const o1 = v.options || {};
+      const o2 = selectedOptions || {};
+      return Object.keys(o1).every((k) => o1[k] === o2[k]) &&
+             Object.keys(o2).every((k) => o1[k] === o2[k]);
+    });
+  }, [product, selectedOptions]);
+
+  const displayPrice = currentVariant ? currentVariant.price : product.price;
+  const displayStock = currentVariant ? currentVariant.stock : product.stock;
+
   React.useEffect(() => {
     if (product) {
       setActiveImage(product.imageUrl);
+      // Initialize selectedOptions with first value of each option
+      if (product.options && product.options.length > 0) {
+        const defaults: Record<string, string> = {};
+        product.options.forEach((opt) => {
+          if (opt.values && opt.values.length > 0) {
+            defaults[opt.name] = opt.values[0];
+          }
+        });
+        setSelectedOptions(defaults);
+      } else {
+        setSelectedOptions({});
+      }
     }
   }, [product]);
 
@@ -188,21 +216,60 @@ export default function ProductDetailModal({
             </div>
 
             {/* Pricing block */}
-            <div className="flex items-baseline gap-3.5 p-3.5 bg-purple-50/50 rounded-lg border border-purple-100">
-              <span className="text-2xl font-black text-[#7c3aed] font-display">
-                {formatNaira(product.price)}
-              </span>
-              {product.discount > 0 && (
-                <>
-                  <span className="text-sm text-gray-400 line-through font-medium">
-                    {formatNaira(product.originalPrice)}
-                  </span>
-                  <span className="text-[10px] bg-red-600 text-white font-black px-1.5 py-0.5 rounded uppercase">
-                    SAVE {formatNaira(product.originalPrice - product.price)}
-                  </span>
-                </>
-              )}
+            <div className="flex flex-col gap-1 p-3.5 bg-purple-50/50 rounded-lg border border-purple-100">
+              <div className="flex items-baseline gap-3.5">
+                <span className="text-2xl font-black text-[#7c3aed] font-display">
+                  {formatNaira(displayPrice)}
+                </span>
+                {product.discount > 0 && (
+                  <>
+                    <span className="text-sm text-gray-400 line-through font-medium">
+                      {formatNaira(product.originalPrice)}
+                    </span>
+                    <span className="text-[10px] bg-red-600 text-white font-black px-1.5 py-0.5 rounded uppercase">
+                      SAVE {formatNaira(product.originalPrice - displayPrice)}
+                    </span>
+                  </>
+                )}
+              </div>
+              
+              <div className="flex justify-between text-[11px] font-bold text-gray-400 uppercase mt-0.5 tracking-wider">
+                <span>Availability: {displayStock > 0 ? `${displayStock} Units Left` : 'Out of Stock'}</span>
+                {currentVariant && <span className="text-purple-600 font-mono select-all">SKU: {currentVariant.sku}</span>}
+              </div>
             </div>
+
+            {/* Options Selectors block */}
+            {product.options && product.options.length > 0 && (
+              <div className="space-y-3.5 pt-1.5 pb-1 text-slate-800">
+                {product.options.map((opt) => (
+                  <div key={opt.name} className="space-y-1.5">
+                    <span className="block text-[11px] font-bold text-gray-500 uppercase tracking-wide">
+                      Select {opt.name}:
+                    </span>
+                    <div className="flex flex-wrap gap-2">
+                      {opt.values.map((v) => {
+                        const isSelected = selectedOptions[opt.name] === v;
+                        return (
+                          <button
+                            key={v}
+                            type="button"
+                            onClick={() => setSelectedOptions(prev => ({ ...prev, [opt.name]: v }))}
+                            className={`px-3 py-1.5 text-xs font-bold rounded uppercase tracking-wide transition border cursor-pointer ${
+                              isSelected
+                                ? 'bg-[#7c3aed] text-white border-[#7c3aed] shadow-sm'
+                                : 'bg-white text-gray-700 border-gray-200 hover:border-gray-400'
+                            }`}
+                          >
+                            {v}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Product description paragraph */}
             <div>
@@ -248,10 +315,10 @@ export default function ProductDetailModal({
           <div className="flex gap-4 pt-4 border-t border-gray-100">
             <button
                onClick={() => {
-                 onAddToCart(product);
+                 onAddToCart(product, selectedOptions);
                  onClose();
                }}
-               className="flex-1 bg-[#7c3aed] hover:bg-[#6d28d9] text-white py-3.5 rounded-lg text-xs md:text-sm font-bold transition shadow-md flex items-center justify-center gap-2.5 active:scale-98"
+               className="flex-1 bg-[#7c3aed] hover:bg-[#6d28d9] text-white py-3.5 rounded-lg text-xs md:text-sm font-bold transition shadow-md flex items-center justify-center gap-2.5 active:scale-98 cursor-pointer"
             >
                <ShoppingCart className="w-4.5 h-4.5" />
                <span>ADD TO CART</span>
