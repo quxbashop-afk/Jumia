@@ -581,7 +581,7 @@ export default function App() {
     try {
       await setDoc(doc(db, 'products', newProduct.id), {
         ...newProduct,
-        isApproved: false, // require admin approval first
+        isApproved: newProduct.isApproved !== undefined ? newProduct.isApproved : false, // respect seller option
         createdAt: Date.now()
       });
     } catch (error) {
@@ -709,7 +709,7 @@ export default function App() {
           <div className="space-y-1">
             <p className="text-xs font-bold text-indigo-200 font-mono flex items-center justify-center gap-1.5">
               <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-ping" />
-              <span>Initializing secure Jumia gateway...</span>
+              <span>Initializing secure Quxba gateway...</span>
             </p>
             <p className="text-[10px] text-purple-300/80 font-mono">Nigeria's #1 Anniversary Mall · Syncing Firestore databases</p>
           </div>
@@ -777,7 +777,7 @@ export default function App() {
             {/* Upper layouts: Category tree panel & Hero Slider */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
               
-              {/* Left sidebar: Quick category selector list (Matches Jumia Sidebar) */}
+              {/* Left sidebar: Quick category selector list (Matches Quxba Sidebar) */}
               <div className="hidden lg:col-span-3 bg-white rounded-xl shadow-sm border border-gray-100 p-4 space-y-1">
                 <span className="text-xs font-black tracking-widest text-[#7c3aed] px-3 py-2 block uppercase border-b border-gray-50 mb-2">
                   OUR DEPARTMENTS 🛒
@@ -821,8 +821,8 @@ export default function App() {
             {/* Shortcut categories promo line (Sleek Theme Circular Grid) */}
             <div className="grid grid-cols-3 sm:grid-cols-6 gap-4 animate-fade-in" id="shortcut-cards">
               {[
-                { label: 'Flash Sales', emoji: '🔥', imgUrl: '/src/assets/images/flash_sales_promo_1780089091034.png', action: () => { setSelectedCategory('All Categories'); setTimeout(() => { document.getElementById('jumia-flash-sales')?.scrollIntoView({ behavior: 'smooth' }); }, 150); }, bg: 'bg-purple-100' },
-                { label: 'Free Delivery', emoji: '🚚', imgUrl: '/src/assets/images/free_delivery_promo_1780089113241.png', action: () => { setSelectedCategory('Supermarket & Groceries'); }, bg: 'bg-blue-100' },
+                { label: 'Flash Sales', emoji: '🔥', imgUrl: 'https://images.unsplash.com/photo-1563013544-824ae1d704d3?auto=format&fit=crop&w=400&q=80', action: () => { setSelectedCategory('All Categories'); setTimeout(() => { document.getElementById('quxba-flash-sales')?.scrollIntoView({ behavior: 'smooth' }); }, 150); }, bg: 'bg-purple-100' },
+                { label: 'Free Delivery', emoji: '🚚', imgUrl: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=400&q=80', action: () => { setSelectedCategory('Supermarket & Groceries'); }, bg: 'bg-blue-100' },
                 { label: 'Supermarket', emoji: '🍏', action: () => { setSelectedCategory('Supermarket & Groceries'); }, bg: 'bg-green-100' },
                 { label: 'Phone Deals', emoji: '📱', action: () => { setSelectedCategory('Phones & Tablets'); }, bg: 'bg-red-100' },
                 { label: 'Official Stores', emoji: '🏦', action: () => { setSelectedCategory('Electronics & Appliances'); }, bg: 'bg-purple-100' },
@@ -1302,7 +1302,7 @@ export default function App() {
       </main>
 
       {/* Footer Block */}
-      <footer className="bg-gray-900 text-gray-300 py-12 border-t border-gray-800 font-sans" id="jumia-footer-block">
+      <footer className="bg-gray-900 text-gray-300 py-12 border-t border-gray-800 font-sans" id="quxba-footer-block">
         <div className="max-w-7xl mx-auto px-4 md:px-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8">
           
           <div className="space-y-4">
@@ -1396,7 +1396,7 @@ export default function App() {
         currentUser={currentUser}
       />
 
-      {/* Jumia Style Floating Mobile Capsule (Sort by ⇅ | Filter ☰) */}
+      {/* Quxba Style Floating Mobile Capsule (Sort by ⇅ | Filter ☰) */}
       {currentView === 'storefront' && (
         <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-40 bg-[#282828] text-white shadow-xl rounded-full px-5 py-2.5 text-xs font-black uppercase tracking-wider flex items-center gap-3 divide-x divide-neutral-600 select-none border border-neutral-700 max-w-max md:hidden">
           <button
@@ -1418,7 +1418,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Jumia Mobile Bottom Sticky Tab Bar (Home | Categories | Cart | Wishlist | Account) */}
+      {/* Quxba Mobile Bottom Sticky Tab Bar (Home | Categories | Cart | Wishlist | Account) */}
       <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 shadow-[0_-2px_10px_rgba(0,0,0,0.06)] h-[62px] flex items-center justify-around md:hidden px-1 select-none">
         
         {/* Home Button */}
@@ -1722,7 +1722,7 @@ export default function App() {
               </button>
             )}
 
-            {/* Jumia Premium Prime info segment */}
+            {/* Quxba Premium Prime info segment */}
             <div className="bg-gradient-to-r from-slate-900 to-slate-800 rounded-xl p-3.5 text-white flex items-center justify-between gap-2 shadow-sm">
               <div className="space-y-0.5">
                 <span className="text-[10px] font-black text-amber-400 uppercase tracking-widest block leading-none">QUXBA PRIME ⭐ PREMIUM</span>
@@ -1735,7 +1735,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Jumia Branded Auth Modal Overlay */}
+      {/* Quxba Branded Auth Modal Overlay */}
       {showAuthModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in font-sans">
           <div 
@@ -1743,7 +1743,7 @@ export default function App() {
             onClick={(e) => e.stopPropagation()}
             id="auth-modal-panel"
           >
-            {/* Upper Jumia Banner */}
+            {/* Upper Quxba Banner */}
             <div className="bg-[#7c3aed] text-white px-6 py-5 flex items-center justify-between">
               <div className="space-y-0.5">
                 <span className="font-display font-black text-xl italic tracking-wide">QUXBA MALL</span>

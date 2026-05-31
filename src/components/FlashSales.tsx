@@ -45,8 +45,8 @@ export default function FlashSales({
   };
 
   return (
-    <div className="bg-[#b31414] sm:bg-[#b31414] rounded-lg overflow-hidden border border-gray-150/10 shadow-md mb-6" id="jumia-flash-sales">
-      {/* Jumia Red Flash Header matching screenshot */}
+    <div className="bg-[#b31414] sm:bg-[#b31414] rounded-lg overflow-hidden border border-gray-150/10 shadow-md mb-6" id="quxba-flash-sales">
+      {/* Quxba Red Flash Header matching screenshot */}
       <div className="bg-[#df1212] px-3.5 py-4 text-white flex items-center justify-between gap-2 border-b border-red-700/30">
         {/* Title, Lightning Symbol and Badge */}
         <div className="flex items-center gap-2 md:gap-3.5">

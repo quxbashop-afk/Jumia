@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { 
   Building2, Percent, TrendingUp, Users, ShoppingBag, Plus, Trash2, Check, X, ShieldAlert, BadgeAlert,
   Send, RefreshCw, BarChart3, CheckSquare, Coins, HelpCircle, PackageOpen, ArrowRight, UserCheck, Star,
-  ChevronRight
+  ChevronRight, Loader2
 } from 'lucide-react';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 import { Product, Order, SupportMessage, CartItem } from '../types';
 
 /* ==========================================================================
@@ -65,10 +66,16 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct }: 
 
   // Ad-ons, featured, related states matching both mockups
   const [isFeatured, setIsFeatured] = useState(false);
+  const [isApprovedDirectly, setIsApprovedDirectly] = useState(true); // Auto-publish directly to Home Page by default!
   const [selectedAddons, setSelectedAddons] = useState<string[]>([]);
   const [showAddonModal, setShowAddonModal] = useState(false);
   const [selectedRelated, setSelectedRelated] = useState<string[]>([]);
   const [showRelatedModal, setShowRelatedModal] = useState(false);
+  
+  // Sorting & Submission states
+  const [sortBy, setSortBy] = useState<'name' | 'price' | 'none'>('none');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   // AI Copilot widgets state from Screenshot 1
   const [isCopilotMinimized, setIsCopilotMinimized] = useState(false);
@@ -85,14 +92,71 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct }: 
   const [activeImageSlot, setActiveImageSlot] = useState<number | null>(null);
 
   const myProducts = products.filter(p => p.sellerId === 'vendor-self' || p.sellerName === vendorName);
+  const sortedProducts = [...myProducts].sort((a, b) => {
+    if (sortBy === 'name') {
+      const nameA = a.name.toLowerCase();
+      const nameB = b.name.toLowerCase();
+      return sortOrder === 'asc' ? nameA.localeCompare(nameB) : nameB.localeCompare(nameA);
+    } else if (sortBy === 'price') {
+      return sortOrder === 'asc' ? a.price - b.price : b.price - a.price;
+    }
+    return 0;
+  });
   const totalSales = 1240000;
   const pendingApproval = products.filter(p => !p.isApproved && (p.sellerId === 'vendor-self' || p.sellerName === vendorName)).length;
 
-  const triggerAiGenerate = () => {
+  const triggerAiGenerate = async () => {
     setIsAiGenerating(true);
     setFormSuccess('');
     setFormError('');
-    setTimeout(() => {
+
+    // If it is the default preset, map to the proper Unsplash image URL
+    let targetImg = newProdImageUrl;
+    if (targetImg === 'chicago-32-jersey') {
+      targetImg = 'https://images.unsplash.com/photo-1556905055-8f358a7a47b2?auto=format&fit=crop&w=400&q=80';
+    }
+
+    try {
+      const response = await fetch('/api/gemini/analyze-product', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ imageUrl: targetImg })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP error ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      setNewProdName(data.name || 'AI Product');
+      setNewProdCategory(data.category || 'Fashion & Apparel');
+      setNewProdPrice(String(data.price || '12000'));
+      setNewProdOldPrice(String(data.originalPrice || '15000'));
+      setNewProdDesc(data.description || 'Premium product designed with high quality components and materials.');
+      
+      // Keep or update image URLs
+      if (newProdImageUrl === 'chicago-32-jersey') {
+        setNewProdImageUrl(targetImg);
+        setUploadedImages([
+          targetImg,
+          'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=400&q=80',
+          'https://images.unsplash.com/photo-1539109136881-3be0616acf4b?auto=format&fit=crop&w=400&q=80',
+          null,
+          null
+        ]);
+      }
+      
+      setIsFeatured(true);
+      setFormSuccess('Google Gemini AI successfully analyzed the image and fully populated the product details!');
+      setTimeout(() => setFormSuccess(''), 6000);
+
+    } catch (err: any) {
+      console.warn('Real Gemini API call failed, falling back to offline preset:', err);
+      // Fallback in case key is missing or invalid
       setNewProdName('Chicago 32 Varsity Hooded Tee & Shorts Athletic Co-ord Set');
       setNewProdCategory('Fashion & Apparel');
       setNewProdPrice('14500');
@@ -108,14 +172,11 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct }: 
         null
       ]);
       setIsFeatured(true);
-      
-      // Auto-attach appropriate add-on
-      setSelectedAddons(['co-ord-socks']);
-      
-      setIsAiGenerating(false);
-      setFormSuccess('Google Gemini AI successfully processed the apparel image! Pre-populated details generated.');
+      setFormSuccess('Loaded catalog template. Connect your Gemini API Key under Secrets to enable full image analysis!');
       setTimeout(() => setFormSuccess(''), 6000);
-    }, 1800);
+    } finally {
+      setIsAiGenerating(false);
+    }
   };
 
   const handleCreateProduct = (e: React.FormEvent) => {
@@ -158,7 +219,7 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct }: 
       stock: 30,
       sellerId: 'vendor-self',
       sellerName: vendorName,
-      isApproved: false, // Must be approved by Admin view!
+      isApproved: isApprovedDirectly, // set from user preference toggle
       brand: newProdName.trim().split(/\s+/)[0] || 'Generic',
       createdAt: Date.now(),
       specifications: { 
@@ -169,22 +230,32 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct }: 
       }
     };
 
-    onAddNewProduct(newProduct);
-    setFormSuccess('Product submitted successfully! It is currently pending approval by the Admin department.');
+    setIsSubmitting(true);
+    setFormSuccess('');
     setFormError('');
-    
-    // reset form fields
-    setNewProdName('');
-    setNewProdPrice('');
-    setNewProdOldPrice('');
-    setNewProdImageUrl('chicago-32-jersey');
-    setUploadedImages(['chicago-32-jersey', null, null, null, null]);
-    setNewProdDesc('');
-    setIsFeatured(false);
-    setSelectedAddons([]);
-    setSelectedRelated([]);
-    
-    setTimeout(() => setFormSuccess(''), 5000);
+
+    setTimeout(() => {
+      onAddNewProduct(newProduct);
+      setFormSuccess(isApprovedDirectly 
+        ? 'Product created and published directly on Homepage with category selection!' 
+        : 'Product submitted successfully! It is currently pending approval by the Admin department.'
+      );
+      setFormError('');
+      setIsSubmitting(false);
+      
+      // reset form fields
+      setNewProdName('');
+      setNewProdPrice('');
+      setNewProdOldPrice('');
+      setNewProdImageUrl('chicago-32-jersey');
+      setUploadedImages(['chicago-32-jersey', null, null, null, null]);
+      setNewProdDesc('');
+      setIsFeatured(false);
+      setSelectedAddons([]);
+      setSelectedRelated([]);
+      
+      setTimeout(() => setFormSuccess(''), 5000);
+    }, 1000);
   };
 
   return (
@@ -240,6 +311,39 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct }: 
             <p className="text-xl font-extrabold text-purple-600 mt-1">Diamond 💎</p>
           </div>
           <div className="bg-purple-50 p-2.5 rounded-full text-purple-600"><Check className="w-5 h-5" /></div>
+        </div>
+      </div>
+
+      {/* Daily Sales Volume Chart Card using Recharts */}
+      <div className="bg-white p-6 rounded-lg border border-gray-100 shadow-sm space-y-4 font-sans text-left">
+        <div>
+          <h3 className="text-sm font-extrabold text-slate-800 uppercase tracking-wide flex items-center gap-2">
+            <BarChart3 className="w-4 h-4 text-[#7c3aed]" />
+            <span>Daily Sales Volume (Past 7 Days)</span>
+          </h3>
+          <p className="text-xs text-gray-400">Track raw order and transaction flow trends to streamline fulfillment and stock management.</p>
+        </div>
+        <div className="h-60 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={[
+              { day: 'Mon', sales: 12 },
+              { day: 'Tue', sales: 19 },
+              { day: 'Wed', sales: 15 },
+              { day: 'Thu', sales: 27 },
+              { day: 'Fri', sales: 22 },
+              { day: 'Sat', sales: 34 },
+              { day: 'Sun', sales: 29 }
+            ]} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+              <XAxis dataKey="day" stroke="#9ca3af" fontSize={10} tickLine={false} />
+              <YAxis stroke="#9ca3af" fontSize={10} tickLine={false} axisLine={false} />
+              <Tooltip 
+                contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: '11px' }}
+                cursor={{ fill: 'rgba(124, 58, 237, 0.04)' }} 
+              />
+              <Bar dataKey="sales" fill="#7c3aed" radius={[4, 4, 0, 0]} name="Orders Filled" />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       </div>
 
@@ -580,6 +684,33 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct }: 
 
               <hr className="border-gray-100/50" />
 
+              {/* Publish directly to Homepage and Selected Category Toggle Switch */}
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5 flex-1 pr-6">
+                  <span className="text-xs font-bold text-slate-800 block leading-tight">Publish directly to Home Page</span>
+                  <p className="text-[10.5px] text-gray-400 font-normal leading-normal">
+                    Auto-approve and immediately display this new product on the Homepage under the selected category.
+                  </p>
+                </div>
+                
+                {/* Switch Toggle */}
+                <button
+                  type="button"
+                  id="direct-publish-toggle"
+                  onClick={() => setIsApprovedDirectly(!isApprovedDirectly)}
+                  className={`w-11 h-6 flex items-center rounded-full p-1 cursor-pointer transition-colors duration-250 flex-shrink-0 ${
+                    isApprovedDirectly ? 'bg-[#7c3aed]' : 'bg-gray-300'
+                  }`}
+                  aria-label="Toggle auto-approval and immediate homepage publish status"
+                >
+                  <div className={`bg-white w-4.5 h-4.5 rounded-full shadow-sm transform duration-250 ${
+                    isApprovedDirectly ? 'translate-x-5' : 'translate-x-0'
+                  }`} />
+                </button>
+              </div>
+
+              <hr className="border-gray-100/50" />
+
               {/* Related Products Settings block */}
               <div 
                 className="flex items-center justify-between cursor-pointer hover:bg-gray-50 p-1.5 -mx-1.5 rounded transition"
@@ -662,7 +793,7 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct }: 
                     setNewProdCategory('Electronics & Appliances');
                     setNewProdPrice('220000');
                     setNewProdOldPrice('295050');
-                    setNewProdImageUrl('/src/assets/images/refrigerator_product_1779974264736.png');
+                    setNewProdImageUrl('https://images.unsplash.com/photo-1571875257727-256c3a8428e8?auto=format&fit=crop&w=600&q=80');
                     setNewProdDesc('Nexus 250L capacity eco inverter smart food-fresher refrigerator with supreme freezer layout.');
                   }}
                   className="block text-left hover:underline text-[#7c3aed] font-black"
@@ -676,7 +807,7 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct }: 
                     setNewProdCategory('Electronics & Appliances');
                     setNewProdPrice('180000');
                     setNewProdOldPrice('240000');
-                    setNewProdImageUrl('/src/assets/images/air_conditioner_product_1779974283856.png');
+                    setNewProdImageUrl('https://images.unsplash.com/photo-1585338107529-13afc5f02586?auto=format&fit=crop&w=600&q=80');
                     setNewProdDesc('Rapid intelligent cooling split AC with active air filtration systems and whisper quiet bedroom performance.');
                   }}
                   className="block text-left hover:underline text-[#7c3aed] font-black mt-1"
@@ -703,9 +834,11 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct }: 
 
             <button
               type="submit"
-              className="w-full bg-[#7c3aed] hover:bg-purple-600 text-white py-2.5 rounded font-bold text-sm transition shadow duration-150 cursor-pointer text-center uppercase tracking-wider"
+              disabled={isSubmitting}
+              className="w-full bg-[#7c3aed] hover:bg-purple-600 disabled:bg-purple-300 text-white py-2.5 rounded font-bold text-sm transition shadow duration-150 cursor-pointer text-center uppercase tracking-wider flex items-center justify-center gap-2"
             >
-              SUBMIT HOSTING LISTING
+              {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
+              <span>{isSubmitting ? 'SUBMISSION IN PROGRESS...' : 'SUBMIT HOSTING LISTING'}</span>
             </button>
           </form>
         </div>
@@ -721,19 +854,55 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct }: 
             <table className="w-full text-left text-xs text-gray-500">
               <thead className="bg-gray-50 text-gray-700 font-bold uppercase border-b border-gray-100">
                 <tr>
-                  <th className="p-3">Product Info</th>
-                  <th className="p-3">Price</th>
+                  <th className="p-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (sortBy === 'name') {
+                          setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+                        } else {
+                          setSortBy('name');
+                          setSortOrder('asc');
+                        }
+                      }}
+                      className="flex items-center gap-1 font-extrabold uppercase text-gray-700 hover:text-[#7c3aed] transition cursor-pointer"
+                    >
+                      <span>Product Info</span>
+                      <span className="text-[10px] text-gray-400 font-mono">
+                        {sortBy === 'name' ? (sortOrder === 'asc' ? '▲' : '▼') : '↕'}
+                      </span>
+                    </button>
+                  </th>
+                  <th className="p-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (sortBy === 'price') {
+                          setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+                        } else {
+                          setSortBy('price');
+                          setSortOrder('asc');
+                        }
+                      }}
+                      className="flex items-center gap-1 font-extrabold uppercase text-gray-700 hover:text-[#7c3aed] transition cursor-pointer"
+                    >
+                      <span>Price</span>
+                      <span className="text-[10px] text-gray-400 font-mono">
+                        {sortBy === 'price' ? (sortOrder === 'asc' ? '▲' : '▼') : '↕'}
+                      </span>
+                    </button>
+                  </th>
                   <th className="p-3">Status</th>
                   <th className="p-3 text-right">Delete</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {myProducts.length === 0 ? (
+                {sortedProducts.length === 0 ? (
                   <tr>
                     <td colSpan={4} className="p-6 text-center text-gray-400 animate-pulse">No products listed by you yet. Use the left-hand form or AI Copilot to submit catalog.</td>
                   </tr>
                 ) : (
-                  myProducts.map((p) => (
+                  sortedProducts.map((p) => (
                     <tr key={p.id} className="hover:bg-slate-50/55 transition">
                       <td className="p-3 flex items-center gap-2 max-w-[200px]">
                         {p.imageUrl === 'chicago-32-jersey' ? (

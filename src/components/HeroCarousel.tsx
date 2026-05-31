@@ -15,7 +15,7 @@ export default function HeroCarousel({ onSelectCategory }: HeroCarouselProps) {
       subtitle: 'Up to 60% OFF Top Electronics, Home Appliances, Tech & Fashion',
       buttonText: 'SHOP THE SALE',
       badge: 'ANNIVERSARY CELEBRATION',
-      image: '/src/assets/images/jumia_anniversary_hero_1779974244611.png',
+      image: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?auto=format&fit=crop&w=1200&q=80',
       videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-girl-in-sunglasses-and-a-blue-headscarf-40186-large.mp4',
       bgColor: 'from-purple-700 via-violet-500 to-fuchsia-400',
       action: () => onSelectCategory('Electronics & Appliances')
@@ -26,7 +26,7 @@ export default function HeroCarousel({ onSelectCategory }: HeroCarouselProps) {
       subtitle: 'Premium Smart Refrigerators & Turbo-charge Air Conditioners with full warranty',
       buttonText: 'BROWSE COOLING DEALS',
       badge: 'EXPRESS COLDTECH',
-      image: '/src/assets/images/refrigerator_product_1779974264736.png',
+      image: 'https://images.unsplash.com/photo-1571875257727-256c3a8428e8?auto=format&fit=crop&w=600&q=80',
       bgColor: 'from-blue-700 via-indigo-600 to-purple-600',
       action: () => onSelectCategory('Electronics & Appliances')
     },
@@ -37,6 +37,7 @@ export default function HeroCarousel({ onSelectCategory }: HeroCarouselProps) {
       buttonText: 'RESTOCK NOW',
       badge: 'BEST PRICE GUARANTEE',
       image: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=1200&q=80',
+      videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-pour-honey-into-a-fresh-fruit-salad-40088-large.mp4',
       bgColor: 'from-emerald-700 via-teal-600 to-cyan-600',
       action: () => onSelectCategory('Supermarket & Groceries')
     }

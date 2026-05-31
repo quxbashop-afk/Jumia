@@ -227,7 +227,7 @@ export default function ProductDetailModal({
               </div>
             )}
 
-            {/* Guarantees of Jumia */}
+            {/* Guarantees of Quxba */}
             <div className="grid grid-cols-3 gap-2 text-center text-[10px] font-sans text-gray-500 pt-2 border-t border-gray-50">
               <div className="flex flex-col items-center">
                 <ShieldCheck className="w-5 h-5 text-green-600 mb-1" />

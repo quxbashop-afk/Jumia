@@ -101,7 +101,7 @@ export default function CartDrawer({
 
   const applyPromo = () => {
     const code = couponCode.toUpperCase();
-    if (code === 'JUMIA50' || code === 'QUXBA50') {
+    if (code === 'QUXBA50') {
       setDiscountAmount(5000);
       setCouponError('');
     } else {
@@ -111,7 +111,7 @@ export default function CartDrawer({
 
   const handleCreateOrder = () => {
     const newOrder: Order = {
-      id: 'JUM-' + Math.floor(100000 + Math.random() * 900000),
+      id: 'QUX-' + Math.floor(100000 + Math.random() * 900000),
       date: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
       items: [...cart],
       totalPrice: grandTotal,
@@ -231,7 +231,7 @@ export default function CartDrawer({
                   <div className="flex gap-2">
                     <input
                       type="text"
-                      placeholder="Coupon Code (e.g. JUMIA50)"
+                      placeholder="Coupon Code (e.g. QUXBA50)"
                       value={couponCode}
                       onChange={(e) => setCouponCode(e.target.value)}
                       className="flex-1 bg-white border border-gray-200 rounded px-3 py-1.5 text-xs focus:ring-1 focus:ring-brand-primary"

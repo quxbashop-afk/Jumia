@@ -27,13 +27,13 @@ export default function ProductCard({
     return '₦ ' + amount.toLocaleString('en-NG');
   };
 
-  // Determine beautiful custom badges to mimic authentic Jumia variety
+  // Determine beautiful custom badges to mimic authentic Quxba variety
   const isOfficialStore = product.category.toLowerCase().includes('electronic') || 
                           product.name.toLowerCase().includes('nivea') ||
                           product.name.toLowerCase().includes('tv') ||
                           product.brand?.toLowerCase() === 'nivea';
 
-  // Slower-moving health/beauty cosmetics are often non-returnable on Jumia
+  // Slower-moving health/beauty cosmetics are often non-returnable on Quxba
   const isNonReturnable = product.category.toLowerCase().includes('beauty') || 
                           product.category.toLowerCase().includes('health') || 
                           product.name.toLowerCase().includes('deodorant') ||
