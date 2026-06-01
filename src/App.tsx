@@ -21,12 +21,13 @@ import {
 } from './components/DashboardViews';
 
 import { INITIAL_PRODUCTS } from './data/products';
+import quxbaLogo from './assets/images/quxba_logo_1780098066924.png';
 import { Product, CartItem, Order, UserAccount } from './types';
 import { 
   Zap, Flame, Percent, RefreshCcw, Landmark, Award, ShieldCheck, HelpCircle, Smartphone, ArrowRight,
   ListFilter, SlidersHorizontal, RotateCcw, X, ChevronDown, ChevronRight, Grid, List,
   Home, ShoppingCart, Heart, User, ShieldAlert, KeyRound, Mail, UserPlus, Info, ShoppingBag,
-  Eye, EyeOff, Loader2
+  Eye, EyeOff, Loader2, Scale, FileText
 } from 'lucide-react';
 
 // Firebase Integrations
@@ -106,7 +107,9 @@ export default function App() {
 
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
-  const [isAppLoading, setIsAppLoading] = useState(true);
+  const [isAppLoading, setIsAppLoading] = useState(() => {
+    return sessionStorage.getItem('quxba_app_already_loaded') !== 'true';
+  });
 
   // Automatic geographic location request and loading simulation on mount
   useEffect(() => {
@@ -123,8 +126,15 @@ export default function App() {
       );
     }
 
+    const alreadyLoaded = sessionStorage.getItem('quxba_app_already_loaded') === 'true';
+    if (alreadyLoaded) {
+      setIsAppLoading(false);
+      return;
+    }
+
     const timer = setTimeout(() => {
       setIsAppLoading(false);
+      sessionStorage.setItem('quxba_app_already_loaded', 'true');
     }, 2650);
 
     return () => clearTimeout(timer);
@@ -421,10 +431,35 @@ export default function App() {
   };
 
   // Navigation states
-  const [selectedCategory, setSelectedCategory] = useState('All Categories');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState('relevance');
-  const [currentView, setCurrentView] = useState<'storefront' | 'seller' | 'admin' | 'orders' | 'support' | 'checkout'>('storefront');
+  const [selectedCategory, setSelectedCategory] = useState(() => {
+    return localStorage.getItem('quxba_selected_category') || 'All Categories';
+  });
+  const [searchQuery, setSearchQuery] = useState(() => {
+    return localStorage.getItem('quxba_search_query') || '';
+  });
+  const [sortBy, setSortBy] = useState(() => {
+    return localStorage.getItem('quxba_sort_by') || 'relevance';
+  });
+  const [currentView, setCurrentView] = useState<'storefront' | 'seller' | 'admin' | 'orders' | 'support' | 'checkout'>(() => {
+    return (localStorage.getItem('quxba_current_view') as any) || 'storefront';
+  });
+
+  // Track state changes to sync with local storage
+  useEffect(() => {
+    localStorage.setItem('quxba_selected_category', selectedCategory);
+  }, [selectedCategory]);
+
+  useEffect(() => {
+    localStorage.setItem('quxba_search_query', searchQuery);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    localStorage.setItem('quxba_sort_by', sortBy);
+  }, [sortBy]);
+
+  useEffect(() => {
+    localStorage.setItem('quxba_current_view', currentView);
+  }, [currentView]);
 
   // Advanced Filter States
   const [minPrice, setMinPrice] = useState<number | ''>('');
@@ -438,11 +473,27 @@ export default function App() {
   // Drawer / overlay triggers
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isWishlistOpen, setIsWishlistOpen] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(() => {
+    const savedId = localStorage.getItem('quxba_selected_product_id');
+    if (savedId) {
+      return INITIAL_PRODUCTS.find(p => p.id === savedId) || null;
+    }
+    return null;
+  });
   const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
+
+  useEffect(() => {
+    if (selectedProduct) {
+      localStorage.setItem('quxba_selected_product_id', selectedProduct.id);
+    } else {
+      localStorage.removeItem('quxba_selected_product_id');
+    }
+  }, [selectedProduct]);
 
   const [showPassword, setShowPassword] = useState(false);
   const [isAuthSubmitting, setIsAuthSubmitting] = useState(false);
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
 
   const handleAddReview = async (productId: string, rating: number, comment: string, userName: string) => {
     const prod = products.find(p => p.id === productId);
@@ -755,13 +806,13 @@ export default function App() {
         <div className="max-w-md w-full px-6 text-center space-y-6 flex flex-col items-center">
           
           {/* Main Logo Container */}
-          <div className="relative flex items-center justify-center w-28 h-28 bg-white/10 rounded-full border border-white/20 shadow-2xl backdrop-blur-md transition-transform duration-500 scale-105">
+          <div className="relative flex items-center justify-center w-28 h-28 bg-white/10 rounded-full border border-white/20 shadow-2xl backdrop-blur-md transition-transform duration-500 scale-105 overflow-hidden">
             {/* Animating outer accent rings */}
             <div className="absolute inset-0 rounded-full border-2 border-t-purple-400 border-r-indigo-400 animate-spin" />
             <div className="absolute -inset-3 rounded-full border border-purple-500/20 animate-ping opacity-75" />
             
-            {/* Real Logo Vector / Symbols */}
-            <ShoppingBag className="w-12 h-12 text-purple-300 animate-pulse" />
+            {/* Real Logo Image Asset */}
+            <img src={quxbaLogo} alt="Quxba" className="w-20 h-20 object-contain rounded-full relative z-10 animate-pulse" />
           </div>
 
           {/* Core Branding Label */}
@@ -769,23 +820,11 @@ export default function App() {
             <h1 className="text-4xl font-extrabold tracking-tight bg-gradient-to-r from-purple-200 via-white to-indigo-200 bg-clip-text text-transparent">
               QUXBA NIGERIA
             </h1>
-            <p className="text-xs uppercase tracking-widest font-black text-purple-300 font-mono">
-              ★ 10th Anniversary Superstore ★
-            </p>
           </div>
 
           {/* Stepper Delivery Themed Progress Bar */}
           <div className="w-48 bg-purple-950 h-2.5 rounded-full overflow-hidden border border-purple-800 shadow-inner">
             <div className="bg-gradient-to-r from-purple-400 via-indigo-400 to-purple-400 h-full w-full rounded-full animate-progress" />
-          </div>
-
-          {/* Fun Loading Captions / Telemetry labels */}
-          <div className="space-y-1">
-            <p className="text-xs font-bold text-indigo-200 font-mono flex items-center justify-center gap-1.5">
-              <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-ping" />
-              <span>Initializing secure Quxba gateway...</span>
-            </p>
-            <p className="text-[10px] text-purple-300/80 font-mono">Nigeria's #1 Anniversary Mall · Syncing Firestore databases</p>
           </div>
 
         </div>
@@ -1404,9 +1443,26 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-4 md:px-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8">
           
           <div className="space-y-4">
-            <span className="font-display text-2xl font-extrabold text-[#7c3aed] italic uppercase w-auto h-12 flex items-center">
-              QUXBA
-            </span>
+            <div className="flex items-center gap-1 w-auto h-12 select-none" id="quxba-footer-logo-blocks">
+              <span className="w-8 h-8 rounded-full bg-[#f47a20] text-black font-sans font-black text-base flex items-center justify-center shadow-sm">
+                Q
+              </span>
+              <span className="w-8 h-8 rounded-sm bg-[#ffc312] text-black font-sans font-black text-base flex items-center justify-center shadow-sm">
+                U
+              </span>
+              <span 
+                className="w-8 h-8 bg-[#8ec010] text-white font-sans font-black text-base flex items-center justify-center shadow-sm"
+                style={{ clipPath: 'polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)' }}
+              >
+                X
+              </span>
+              <span className="w-8 h-8 rounded-full bg-[#13b5ea] text-black font-sans font-black text-base flex items-center justify-center shadow-sm">
+                B
+              </span>
+              <span className="w-8 h-8 rounded-sm bg-[#7c3aed] text-white font-sans font-black text-base flex items-center justify-center shadow-sm">
+                A
+              </span>
+            </div>
             <p className="text-xs text-gray-400 leading-relaxed">
               Quxba is the leading e-commerce platform. Discover incredible discounts, electronic flash sales, clothes, and groceries delivered straight to your residence.
             </p>
@@ -1416,7 +1472,6 @@ export default function App() {
             <h4 className="text-sm font-bold text-white uppercase tracking-wider">Help & Resources</h4>
             <ul className="space-y-2 text-xs text-gray-400">
               <li><button onClick={() => setCurrentView('support')} className="hover:text-white transition">Live Support Chat</button></li>
-              <li><button onClick={() => setSelectedCategory('All Categories')} className="hover:text-white transition">Return Guidelines</button></li>
               <li><span className="text-gray-500">Service Hours: 24/7 Fast Help Room</span></li>
             </ul>
           </div>
@@ -1425,8 +1480,6 @@ export default function App() {
             <h4 className="text-sm font-bold text-white uppercase tracking-wider">Partner with Quxba</h4>
             <ul className="space-y-2 text-xs text-gray-400">
               <li><button onClick={() => setCurrentView('seller')} className="hover:text-white transition font-bold text-purple-400">Sell on Quxba (Seller Zone)</button></li>
-              <li><span className="text-gray-500">Hub Pick-up Joint Partner</span></li>
-              <li><span className="text-gray-500">Logistics & Rider Contractor</span></li>
             </ul>
           </div>
 
@@ -1446,13 +1499,25 @@ export default function App() {
         </div>
 
         <div className="max-w-7xl mx-auto px-4 md:px-6 mt-8 pt-8 border-t border-gray-800 text-center text-xs text-gray-500 flex flex-col md:flex-row justify-between gap-4">
-          <p>© 2026 Quxba E-Commerce Platform. Designed for modern high-fidelity responsive web experience.</p>
+          <p>© 2026 Quxba</p>
           <div className="flex justify-center gap-4">
-            <span className="hover:text-gray-300">Privacy Policy</span>
+            <span 
+              onClick={() => setShowPrivacyModal(true)} 
+              className="hover:text-white cursor-pointer transition duration-150 hover:underline select-none"
+              id="quxba-footer-privacy-link"
+            >
+              Privacy Policy
+            </span>
             <span>·</span>
-            <span className="hover:text-gray-300">Terms of Service</span>
+            <span 
+              onClick={() => setShowTermsModal(true)} 
+              className="hover:text-white cursor-pointer transition duration-150 hover:underline select-none"
+              id="quxba-footer-terms-link"
+            >
+              Terms of Service
+            </span>
             <span>·</span>
-            <span className="hover:text-gray-300">Nigeria</span>
+            <span className="hover:text-gray-300 select-none">Nigeria</span>
           </div>
         </div>
       </footer>
@@ -2032,6 +2097,322 @@ export default function App() {
                 </ul>
               </div>
 
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Gorgeous Quxba Platform Privacy Policy Overlay Model */}
+      {showPrivacyModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in font-sans" id="privacy-policy-modal-overlay">
+          <div 
+            className="bg-white dark:bg-neutral-900 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden border border-gray-150 dark:border-neutral-800 flex flex-col animate-slide-up"
+            onClick={(e) => e.stopPropagation()}
+            id="privacy-modal-panel"
+          >
+            {/* Header */}
+            <div className="bg-[#7c3aed] text-white px-6 py-5 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="bg-white/25 p-2 rounded-lg">
+                  <ShieldCheck className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-display font-black text-sm uppercase tracking-wider text-white">Our Privacy Policy</h3>
+                  <p className="text-[10px] text-purple-100 uppercase tracking-widest font-black">Legal & Extant Compliance</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowPrivacyModal(false)}
+                className="text-white/80 hover:text-white hover:bg-white/10 transition p-1.5 rounded-full cursor-pointer bg-transparent outline-none border-0"
+                aria-label="Close privacy policy modal"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Privacy Policy terms content matched perfectly with requested info */}
+            <div className="p-6 space-y-4 flex-grow overflow-y-auto max-h-[70vh] text-left">
+              <p className="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed font-semibold">
+                Welcome to Quxba! This privacy policy documents how we handle, inspect, and protect data which you submit when traversing our marketplace.
+              </p>
+
+              <div className="space-y-3.5 pt-1">
+                
+                <div className="bg-gray-50 dark:bg-neutral-850 p-4 rounded-xl border border-gray-100 dark:border-neutral-800/80">
+                  <h4 className="text-xs font-black text-purple-700 dark:text-[#a78bfa] uppercase tracking-wider mb-1.5">
+                    ✓ How we collect information from you
+                  </h4>
+                  <p className="text-xs text-gray-600 dark:text-neutral-300 leading-relaxed font-medium">
+                    We collect direct customer identity details (such as names, verified Lagos shipping addresses, phone numbers, and optional order remarks) submitted during user account sign-up and verified secure checkouts.
+                  </p>
+                </div>
+
+                <div className="bg-gray-50 dark:bg-neutral-850 p-4 rounded-xl border border-gray-100 dark:border-neutral-800/80">
+                  <h4 className="text-xs font-black text-purple-700 dark:text-[#a78bfa] uppercase tracking-wider mb-1.5">
+                    ✓ How we protect customers' information
+                  </h4>
+                  <p className="text-xs text-gray-600 dark:text-neutral-300 leading-relaxed font-medium">
+                    Customer dispatch lists and pre-paid checkout details are securely protected behind 256-bit encryption layers and compiled within robust Cloud Firestore databases. We run consistent security rule verification matrices to prevent data leaks.
+                  </p>
+                </div>
+
+                <div className="bg-gray-50 dark:bg-neutral-850 p-4 rounded-xl border border-gray-100 dark:border-neutral-800/80">
+                  <h4 className="text-xs font-black text-purple-700 dark:text-[#a78bfa] uppercase tracking-wider mb-1.5">
+                    ✓ How we use and share personal information
+                  </h4>
+                  <p className="text-xs text-gray-600 dark:text-neutral-300 leading-relaxed font-medium">
+                    Quxba uses collected information specifically to coordinate anniversary dispatches, compute logistics routing, and run real-time logistics tracking updates. We do not sell or lease customer database lists to external marketing affiliates.
+                  </p>
+                </div>
+
+                <div className="bg-gray-50 dark:bg-neutral-850 p-4 rounded-xl border border-gray-100 dark:border-neutral-800/80">
+                  <h4 className="text-xs font-black text-purple-700 dark:text-[#a78bfa] uppercase tracking-wider mb-1.5">
+                    ✓ General information & Extant compliance
+                  </h4>
+                  <p className="text-xs text-gray-600 dark:text-neutral-300 leading-relaxed font-medium">
+                    Our platform services are strictly governed in line with extant laws and national data privacy regulations of Nigeria. By submitting security details to Quxba marketplace, you consent to our secure transaction pipelines.
+                  </p>
+                </div>
+
+                <div className="bg-rose-50/50 dark:bg-rose-950/10 p-4 rounded-xl border border-rose-100 dark:border-rose-900/20">
+                  <h4 className="text-xs font-black text-rose-750 dark:text-rose-400 uppercase tracking-wider mb-1.5">
+                    ⚠️ Third-Party Exclusion Disclaimer
+                  </h4>
+                  <p className="text-xs text-rose-800/80 dark:text-rose-300/90 leading-relaxed font-bold">
+                    This policy does not apply to the practices of authorized third party agents, or people of whom we do not exercise direct control, employment, or management.
+                  </p>
+                </div>
+
+              </div>
+            </div>
+
+            {/* Footer Close CTA */}
+            <div className="bg-gray-50 dark:bg-neutral-850 px-6 py-4 border-t border-gray-150 dark:border-neutral-800/60 flex justify-end">
+              <button 
+                onClick={() => setShowPrivacyModal(false)}
+                className="bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-xs font-black px-6 py-3 rounded-xl uppercase tracking-wider transition hover:shadow active:scale-98 cursor-pointer"
+              >
+                Accept & Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Gorgeous Quxba Platform Terms of Service Overlay Model */}
+      {showTermsModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in font-sans" id="terms-of-service-modal-overlay">
+          <div 
+            className="bg-white dark:bg-neutral-900 w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden border border-gray-150 dark:border-neutral-800 flex flex-col animate-slide-up"
+            onClick={(e) => e.stopPropagation()}
+            id="terms-modal-panel"
+          >
+            {/* Header */}
+            <div className="bg-[#7c3aed] text-white px-6 py-5 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="bg-white/25 p-2 rounded-lg">
+                  <Scale className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-display font-black text-sm uppercase tracking-wider text-white">Terms of Service</h3>
+                  <p className="text-[10px] text-purple-100 uppercase tracking-widest font-black">Platform Agreements & User Rules</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowTermsModal(false)}
+                className="text-white/80 hover:text-white hover:bg-white/10 transition p-1.5 rounded-full cursor-pointer bg-transparent outline-none border-0"
+                aria-label="Close terms of service modal"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Terms items content scrolling */}
+            <div className="p-6 space-y-5 flex-grow overflow-y-auto max-h-[65vh] text-left">
+              <div className="flex items-center justify-between p-3.5 bg-purple-50 dark:bg-purple-950/20 border border-purple-100 dark:border-purple-900/30 rounded-xl mb-4">
+                <div className="flex items-center gap-2">
+                  <div className="text-[#f47a20] font-black text-xs font-sans bg-black/5 dark:bg-white/10 w-6 h-6 rounded-full flex items-center justify-center">Q</div>
+                  <span className="text-xs font-black text-purple-950 dark:text-purple-200">Official Quxba Marketplace Code</span>
+                </div>
+                <span className="text-[9px] font-mono bg-[#7c3aed]/10 text-[#7c3aed] dark:text-purple-300 font-bold px-2 py-0.5 rounded-full">
+                  Lagos, Nigeria
+                </span>
+              </div>
+
+              <div className="space-y-4">
+                {/* 1. Age constraints */}
+                <div className="border border-gray-100 dark:border-neutral-800/80 rounded-xl p-4 hover:border-purple-200 dark:hover:border-purple-900/50 transition">
+                  <h4 className="text-[11.5px] font-black text-[#7c3aed] uppercase tracking-wider mb-1.5 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#f47a20]" />
+                    1. Eligibility & Age Restriction
+                  </h4>
+                  <p className="text-xs text-gray-600 dark:text-neutral-300 leading-relaxed font-semibold">
+                    You must be at least <strong className="text-gray-900 dark:text-white">18 years old</strong> to place orders directly on this platform. If under the required age, orders must be placed under the guidance and active supervision of a parent or legal guardian.
+                  </p>
+                </div>
+
+                {/* 2. Contract Formation */}
+                <div className="border border-gray-100 dark:border-neutral-800/80 rounded-xl p-4 hover:border-purple-200 dark:hover:border-purple-900/50 transition">
+                  <h4 className="text-[11.5px] font-black text-[#7c3aed] uppercase tracking-wider mb-2 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#ffc312]" />
+                    2. Orders, Acceptance & Contract Formation
+                  </h4>
+                  <ul className="text-xs text-gray-600 dark:text-neutral-300 space-y-2 leading-relaxed font-semibold pl-4 list-disc">
+                    <li>Placing an order constitutes an offer to purchase the products listed.</li>
+                    <li>We may accept or decline orders at our sole discretion. An order is accepted and a contract formed when we send an order confirmation email or when we dispatch the goods, whichever occurs first.</li>
+                    <li>We reserve the right to limit quantities, refuse service, cancel orders, or revoke offers at our sole discretion.</li>
+                    <li>Prices are shown on the Site and include or exclude taxes and shipping as specified at checkout.</li>
+                    <li>We accept payment methods listed at checkout (e.g., credit/debit cards, bank transfer, or Pay on Delivery in Lagos).</li>
+                    <li>Payment is taken at the time of ordering. If payment cannot be processed, we reserve the right to cancel the order.</li>
+                    <li>Errors in pricing or product information will be corrected immediately; if a product's correct price is higher, we may contact you to confirm or cancel the order.</li>
+                  </ul>
+                </div>
+
+                {/* 3. Shipping and regional limitations */}
+                <div className="border border-gray-100 dark:border-neutral-800/80 rounded-xl p-4 hover:border-purple-200 dark:hover:border-purple-900/50 transition">
+                  <h4 className="text-[11.5px] font-black text-[#7c3aed] uppercase tracking-wider mb-1.5 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#8ec010]" />
+                    3. Shipping & Delivery
+                  </h4>
+                  <ul className="text-xs text-gray-600 dark:text-neutral-300 space-y-1 leading-relaxed font-semibold pl-4 list-disc">
+                    <li>We ship to specified countries/regions (principally optimized for Lagos delivery zones).</li>
+                    <li>Estimated delivery times are provided at checkout and are estimates only. Physical constraints may affect delivery schedules.</li>
+                  </ul>
+                </div>
+
+                {/* 4. Returns & Refunds */}
+                <div className="border border-gray-100 dark:border-neutral-800/80 rounded-xl p-4 hover:border-purple-200 dark:hover:border-purple-900/50 transition">
+                  <h4 className="text-[11.5px] font-black text-[#7c3aed] uppercase tracking-wider mb-2 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#13b5ea]" />
+                    4. Returns & Refunds Policy
+                  </h4>
+                  <ul className="text-xs text-gray-600 dark:text-neutral-300 space-y-2 leading-relaxed font-semibold pl-4 list-disc">
+                    <li>Our returns policy is strict: <strong className="text-gray-950 dark:text-white">7 days from delivery</strong>, unworn, with tags attached, and in original packaging.</li>
+                    <li>To log a return, please contact customer support immediately inside our chat module or email us at <span className="text-[#7c3aed] hover:underline font-mono">support@quxba.com</span>.</li>
+                    <li>Refunds are processed back to your original payment method within <strong className="text-gray-950 dark:text-white">7 days</strong> of our warehouse receiving and inspecting the returned item.</li>
+                    <li>Shipping costs for returns are paid by the customer, unless the item is defective or incorrect.</li>
+                    <li>Sale/clearance items are final sale and not eligible for return unless authorized otherwise.</li>
+                  </ul>
+                </div>
+
+                {/* 5. Sizing details */}
+                <div className="border border-gray-100 dark:border-neutral-800/80 rounded-xl p-4 hover:border-purple-200 dark:hover:border-purple-900/50 transition">
+                  <h4 className="text-[11.5px] font-black text-[#7c3aed] uppercase tracking-wider mb-1.5 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#7c3aed]" />
+                    5. Sizing & Product Information
+                  </h4>
+                  <p className="text-xs text-gray-600 dark:text-neutral-300 leading-relaxed font-semibold">
+                    We provide detailed size guides and comprehensive product descriptions to help choice matching. Variations in color hue, fit, or measurements may occur slightly depending on monitor and physical supply chains. Minor variations from images do not constitute a defect.
+                  </p>
+                </div>
+
+                {/* 6. Defective items */}
+                <div className="border border-gray-100 dark:border-neutral-800/80 rounded-xl p-4 hover:border-purple-200 dark:hover:border-purple-900/50 transition">
+                  <h4 className="text-[11.5px] font-black text-[#7c3aed] uppercase tracking-wider mb-1.5 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#f47a20]" />
+                    6. Defective or Incorrect Items
+                  </h4>
+                  <p className="text-xs text-gray-600 dark:text-neutral-300 leading-relaxed font-semibold">
+                    If an item is faulty, damaged, or incorrect, please submit a report within <strong className="text-gray-950 dark:text-white">3 days of delivery</strong> with visual evidence (photos, order number). We will evaluate and coordinate replacements, repairs, or full refunds.
+                  </p>
+                </div>
+
+                {/* 7. Cancellations */}
+                <div className="border border-gray-100 dark:border-neutral-800/80 rounded-xl p-4 hover:border-purple-200 dark:hover:border-purple-900/50 transition">
+                  <h4 className="text-[11.5px] font-black text-[#7c3aed] uppercase tracking-wider mb-1.5 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#ffc312]" />
+                    7. Cancellations
+                  </h4>
+                  <p className="text-xs text-gray-600 dark:text-neutral-300 leading-relaxed font-semibold">
+                    You may cancel an order prior to dispatch by contacting customer service directly. Once an order has been dispatched from our Lagos station, cancellation is not possible; normal return/exchange procedures will apply instead.
+                  </p>
+                </div>
+
+                {/* 8. Promotions */}
+                <div className="border border-gray-100 dark:border-neutral-800/80 rounded-xl p-4 hover:border-purple-200 dark:hover:border-purple-900/50 transition">
+                  <h4 className="text-[11.5px] font-black text-[#7c3aed] uppercase tracking-wider mb-1.5 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#8ec010]" />
+                    8. Promotions & Discounts
+                  </h4>
+                  <p className="text-xs text-gray-600 dark:text-neutral-300 leading-relaxed font-semibold">
+                    Promotional codes (such as <strong className="text-purple-750 dark:text-purple-300">QUXBA50</strong>), discounts, and offers are subject to terms and expiration dates. Only one promotion may be applied per order unless stated otherwise. We reserve the right to cancel or modify active promotions.
+                  </p>
+                </div>
+
+                {/* 9. IP rights */}
+                <div className="border border-gray-100 dark:border-neutral-800/80 rounded-xl p-4 hover:border-purple-200 dark:hover:border-purple-900/50 transition">
+                  <h4 className="text-[11.5px] font-black text-[#7c3aed] uppercase tracking-wider mb-1.5 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#13b5ea]" />
+                    9. Intellectual Property
+                  </h4>
+                  <p className="text-xs text-gray-600 dark:text-neutral-300 leading-relaxed font-semibold">
+                    All content on the Site (designs, special graphics, 3D animations, block logos, text, images, and product photos) is our property or licensed to us. You may not reproduce or use our intellectual property without express written permission.
+                  </p>
+                </div>
+
+                {/* 10. Accounts */}
+                <div className="border border-gray-100 dark:border-neutral-800/80 rounded-xl p-4 hover:border-purple-200 dark:hover:border-purple-900/50 transition">
+                  <h4 className="text-[11.5px] font-black text-[#7c3aed] uppercase tracking-wider mb-1.5 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#7c3aed]" />
+                    10. User Accounts
+                  </h4>
+                  <p className="text-xs text-gray-600 dark:text-neutral-300 leading-relaxed font-semibold">
+                    If you create an account, you are solely responsible for maintaining the confidentiality of your login details and for all activity on your account. Notify us immediately of any unauthorized usage checks.
+                  </p>
+                </div>
+
+                {/* 11. Privacy with explicit link back */}
+                <div className="bg-purple-50/50 dark:bg-purple-950/10 border border-purple-100 dark:border-purple-900/20 rounded-xl p-4 hover:border-purple-200 dark:hover:border-purple-900/40 transition">
+                  <h4 className="text-[11.5px] font-black text-[#7c3aed] uppercase tracking-wider mb-1.5 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#f47a20]" />
+                    11. Privacy Statement
+                  </h4>
+                  <p className="text-xs text-gray-600 dark:text-neutral-300 leading-relaxed font-semibold">
+                    Our Privacy Policy governs the collection, use, and disclosure of personal information. By using our Site, you consent to computing and processing of your data as described in that policy. 
+                    <button 
+                      onClick={() => { setShowTermsModal(false); setShowPrivacyModal(true); }}
+                      className="ml-1 text-purple-700 hover:text-[#6d28d9] hover:underline font-black cursor-pointer bg-transparent border-0 p-0"
+                    >
+                      [View Privacy Policy]
+                    </button>
+                  </p>
+                </div>
+
+                {/* 12. Limitation of liability */}
+                <div className="border border-gray-100 dark:border-neutral-800/80 rounded-xl p-4 hover:border-purple-200 dark:hover:border-purple-900/50 transition">
+                  <h4 className="text-[11.5px] font-black text-[#7c3aed] uppercase tracking-wider mb-2 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#ffc312]" />
+                    12. Limitation of Liability & Warranties
+                  </h4>
+                  <ul className="text-xs text-gray-600 dark:text-neutral-300 space-y-1.5 leading-relaxed font-semibold pl-4 list-disc">
+                    <li>Products are provided "as is" except as required by law.</li>
+                    <li>To the fullest extent permitted by law, we disclaim all warranties (express or implied) and limit liability for damages arising from use of the Site or products. Our liability for any claim shall not exceed the purchase price paid for the relevant Product(s).</li>
+                    <li>Some jurisdictions do not allow exclusion of certain warranties or limits on liability; where prohibited, those exclusions/limits may not apply.</li>
+                  </ul>
+                </div>
+
+                {/* 13. Indemnification */}
+                <div className="border border-gray-150 dark:border-neutral-800 rounded-xl p-4 bg-gray-50 dark:bg-neutral-850 hover:border-purple-200 dark:hover:border-purple-900/50 transition">
+                  <h4 className="text-[11.5px] font-black text-[#7c3aed] uppercase tracking-wider mb-1.5 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#8ec010]" />
+                    13. Indemnification
+                  </h4>
+                  <p className="text-xs text-gray-600 dark:text-neutral-300 leading-relaxed font-semibold">
+                    You agree to indemnify, defend, and hold us harmless from claims, damages, liabilities, costs, and expenses arising out of your breach of these Terms, misuse of Products, or violation of third-party rights.
+                  </p>
+                </div>
+
+              </div>
+            </div>
+
+            {/* Footer Close CTA */}
+            <div className="bg-gray-50 dark:bg-neutral-850 px-6 py-4 border-t border-gray-150 dark:border-neutral-800/60 flex justify-end">
+              <button 
+                onClick={() => setShowTermsModal(false)}
+                className="bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-xs font-black px-6 py-3 rounded-xl uppercase tracking-wider transition hover:shadow active:scale-98 cursor-pointer"
+              >
+                Accept & Close
+              </button>
             </div>
           </div>
         </div>
