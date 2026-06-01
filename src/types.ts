@@ -56,6 +56,7 @@ export interface SupportMessage {
   sender: 'user' | 'agent';
   text: string;
   timestamp: string;
+  citations?: Array<{ title: string; uri: string }>;
 }
 
 export interface Order {

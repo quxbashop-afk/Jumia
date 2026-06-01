@@ -10,6 +10,50 @@ import { db, OperationType, handleFirestoreError } from '../firebase';
 import { collection, onSnapshot, query, orderBy, setDoc, doc, deleteDoc } from 'firebase/firestore';
 
 
+// Client-side image compression utility to fit Firestore 1MB document limitations
+const compressImage = (base64Str: string, maxWidth = 600, maxHeight = 600): Promise<string> => {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.src = base64Str;
+    img.onload = () => {
+      let width = img.width;
+      let height = img.height;
+
+      // Keep aspect ratio
+      if (width > height) {
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+      } else {
+        if (height > maxHeight) {
+          width = Math.round((width * maxHeight) / height);
+          height = maxHeight;
+        }
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve(base64Str); // Fallback
+        return;
+      }
+
+      ctx.drawImage(img, 0, 0, width, height);
+      // Compress as JPEG with 0.75 quality
+      const compressed = canvas.toDataURL('image/jpeg', 0.75);
+      resolve(compressed);
+    };
+    img.onerror = () => {
+      resolve(base64Str); // Fallback
+    };
+  });
+};
+
+
 /* ==========================================================================
    1. SELLER ZONE DASHBOARD
    ========================================================================== */
@@ -1535,7 +1579,13 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct }: 
                                   reader.readAsDataURL(file);
                                 });
                                 if (base64) {
-                                  updated[currentIdx] = base64;
+                                  try {
+                                    const compressed = await compressImage(base64);
+                                    updated[currentIdx] = compressed;
+                                  } catch (compErr) {
+                                    console.error("Could not compress image, saving fallback", compErr);
+                                    updated[currentIdx] = base64;
+                                  }
                                   currentIdx++;
                                 }
                               }
@@ -3089,13 +3139,14 @@ export function OrderTrackingView({ orders, onCancelOrder, onReorder, onToggleVi
    ========================================================================== */
 export function CustomerSupportChat() {
   const [messages, setMessages] = useState<SupportMessage[]>([
-    { id: '1', sender: 'agent', text: 'Hello! Welcome to Quxba Express Help Desk. 💜 How may we support you with our products, payouts, or your anniversary shipment tracking today?', timestamp: 'Just Now' }
+    { id: '1', sender: 'agent', text: 'Hello! Welcome to Quxba Express Help Desk. 💜 I am equipped with real-time Google Search! Ask me about current events, trending tech, specifications, or shipment news.', timestamp: 'Just Now' }
   ]);
   const [inputMessage, setInputMessage] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
 
-  const handleSend = (e: React.FormEvent) => {
+  const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputMessage.trim()) return;
+    if (!inputMessage.trim() || isTyping) return;
 
     const userMsg: SupportMessage = {
       id: Date.now().toString(),
@@ -3104,31 +3155,43 @@ export function CustomerSupportChat() {
       timestamp: 'Just Now'
     };
 
-    setMessages(prev => [...prev, userMsg]);
+    const updatedHistory = [...messages, userMsg];
+    setMessages(updatedHistory);
     setInputMessage('');
+    setIsTyping(true);
 
-    // Responsive bot simulated reply
-    setTimeout(() => {
-      let botResponseText = 'Thank you for writing inside Quxba Help Room. We are querying the dispatch catalog... Let us know if this involves a product warranty or refunds!';
-      const txtLower = inputMessage.toLowerCase();
-      if (txtLower.includes('refrigerator') || txtLower.includes('fridge')) {
-        botResponseText = 'Our Nexus 250L Refrigerator includes full 2 Years warranty! Your pre-paid purchase is guarded with official replacement stamp. It will arrive inside 48 hours for Lagos addresses.';
-      } else if (txtLower.includes('ac') || txtLower.includes('air conditioner')) {
-        botResponseText = 'The Skyrun Split Air Conditioner features turbo energy saving, cooling down Lagos apartments in minutes. Rest assured your order tracking state is fully live.';
-      } else if (txtLower.includes('commission') || txtLower.includes('vendor') || txtLower.includes('seller')) {
-        botResponseText = 'Our vendor commissions are set at 12.5% max limit. Once listings are hosted in your Seller Zone, simply switch to Admin views to instantly approve them live.';
-      } else if (txtLower.includes('track') || txtLower.includes('order')) {
-        botResponseText = 'You can track orders effortlessly under "Account" -> "My Orders" tab. Enter your generated order reference (e.g. QUX-123456) to look up active shipment timelines.';
+    try {
+      const response = await fetch("/api/gemini/support-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: updatedHistory })
+      });
+
+      if (!response.ok) {
+        throw new Error("Grounding chat returned status code " + response.status);
       }
 
+      const data = await response.json();
       const botMsg: SupportMessage = {
         id: (Date.now() + 1).toString(),
         sender: 'agent',
-        text: botResponseText,
-        timestamp: 'Just Now'
+        text: data.text,
+        timestamp: 'Just Now',
+        citations: data.citations
       };
       setMessages(prev => [...prev, botMsg]);
-    }, 1500);
+    } catch (err: any) {
+      console.error("Grounded Chat Error:", err);
+      const errMsg: SupportMessage = {
+        id: (Date.now() + 1).toString(),
+        sender: 'agent',
+        text: "Sorry, I had some trouble connecting to the Google Search grounding engine. Let me know if you would like me to try again!",
+        timestamp: 'Just Now'
+      };
+      setMessages(prev => [...prev, errMsg]);
+    } finally {
+      setIsTyping(false);
+    }
   };
 
   return (
@@ -3141,7 +3204,7 @@ export function CustomerSupportChat() {
           <h3 className="font-extrabold text-sm tracking-tight">Quxba Anniversary Help Desk</h3>
           <p className="text-[10px] text-purple-100 flex items-center gap-1">
             <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-            Active · Typical response less than 1 min
+            Active · Powered by Google Gemini with Real-time Search Grounding
           </p>
         </div>
       </div>
@@ -3161,24 +3224,54 @@ export function CustomerSupportChat() {
               }`}
             >
               {m.text}
+
+              {/* Grounded Web Citations display */}
+              {m.citations && m.citations.length > 0 && (
+                <div className="mt-2.5 pt-2 border-t border-gray-100 space-y-1">
+                  <span className="block text-[8.5px] font-black tracking-widest text-[#7c3aed] uppercase">Google Search Verified Sources:</span>
+                  <div className="flex flex-wrap gap-1.5 mt-1">
+                    {m.citations.slice(0, 3).map((cit, cIdx) => (
+                      <a
+                        key={cIdx}
+                        href={cit.uri}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 bg-[#7c3aed]/5 hover:bg-[#7c3aed]/10 text-[#7c3aed] border border-purple-100 hover:border-purple-200 text-[10px] font-bold px-2 py-0.5 rounded transition no-referrer whitespace-nowrap max-w-[180px] truncate"
+                      >
+                        🌐 {cit.title}
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
             <span className="text-[9px] text-gray-400 mt-1 uppercase font-semibold font-mono">{m.timestamp}</span>
           </div>
         ))}
+        {isTyping && (
+          <div className="flex flex-col items-start max-w-[85%] mr-auto">
+            <div className="rounded-lg px-3.5 py-2.5 text-xs text-purple-700 bg-purple-50/80 border border-purple-100 flex items-center gap-1.5 rounded-tl-none animate-pulse">
+              <RefreshCw className="w-3 h-3 animate-spin text-[#7c3aed]" />
+              <span className="font-semibold">Searching Google & fact-checking news...</span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Send Message Form bar */}
       <form onSubmit={handleSend} className="p-3 bg-white border-t border-gray-150 flex gap-2">
         <input
           type="text"
-          placeholder="Ask Quxba assistant anything (refrigerators, ACs, orders...)"
+          disabled={isTyping}
+          placeholder="Ask anything (e.g. 'current USD Naira rate', 'latest phone specs')..."
           value={inputMessage}
           onChange={(e) => setInputMessage(e.target.value)}
-          className="flex-1 bg-gray-50 border border-gray-200 rounded-md px-3.5 py-2 text-sm focus:bg-white focus:ring-1 focus:ring-purple-500 focus:outline-none"
+          className="flex-1 bg-gray-50 border border-gray-200 rounded-md px-3.5 py-2 text-sm focus:bg-white focus:ring-1 focus:ring-purple-500 focus:outline-none disabled:opacity-50"
         />
         <button 
           type="submit"
-          className="bg-[#7c3aed] hover:bg-[#6d28d9] text-white p-2.5 rounded-md transition shadow flex items-center justify-center flex-shrink-0"
+          disabled={isTyping}
+          className="bg-[#7c3aed] hover:bg-[#6d28d9] disabled:bg-purple-300 text-white p-2.5 rounded-md transition shadow flex items-center justify-center flex-shrink-0 cursor-pointer"
           aria-label="Send message"
         >
           <Send className="w-4.5 h-4.5" />

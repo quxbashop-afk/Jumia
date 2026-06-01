@@ -124,6 +124,63 @@ app.post("/api/gemini/analyze-product", async (req, res) => {
   }
 });
 
+// New secure API route for real-time Google Search grounded customer assistance
+app.post("/api/gemini/support-chat", async (req, res) => {
+  try {
+    const { messages } = req.body;
+    if (!messages || !Array.isArray(messages)) {
+      return res.status(400).json({ error: "Missing or invalid messages parameter." });
+    }
+
+    const ai = getAiClient();
+
+    // Map the conversation history cleanly for Gemini generateContent
+    // Since we want search grounding, we map roles: 'user' to user and 'agent' to model
+    const contents = messages.slice(-10).map((msg: any) => ({
+      role: msg.sender === "user" ? "user" : "model",
+      parts: [{ text: msg.text }]
+    }));
+
+    if (contents.length === 0) {
+      contents.push({ role: "user", parts: [{ text: "Hello" }] });
+    }
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3.5-flash",
+      contents: contents,
+      config: {
+        systemInstruction: "You are the advanced Quxba Express Customer & Merchant Virtual Helpdesk Agent, powered by Google Gemini and equipped with real-time Google Search. You assist users with questions about shipping, standard Lagos/Nigeria retail guidelines, product specifications, general knowledge, current events, global trends, recent news, or fact-check requests. Keep your answers clear, succinct, highly friendly, and extremely helpful. Whenever you use info sourced from Google Search, summarize it in a clean, human-like manner.",
+        tools: [{ googleSearch: {} }]
+      }
+    });
+
+    const replyText = response.text || "I am processing your query. Please ask a specific question.";
+
+    // Safely extract search grounding chunks for citation clickable buttons
+    const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+    const citations = groundingChunks
+      .map((chunk: any) => {
+        if (chunk.web) {
+          return {
+            title: chunk.web.title || "Web Source",
+            uri: chunk.web.uri
+          };
+        }
+        return null;
+      })
+      .filter((cit: any) => cit !== null);
+
+    return res.json({
+      text: replyText,
+      citations: citations
+    });
+
+  } catch (error: any) {
+    console.error("Support Chat Gemini error:", error);
+    return res.status(500).json({ error: error.message || "Failed to generate grounded support response." });
+  }
+});
+
 // Secure API endpoint for validated e-commerce checkout checkouts
 app.post("/api/orders/validate-checkout", (req, res) => {
   try {
