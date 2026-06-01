@@ -67,6 +67,20 @@ service cloud.firestore {
              data.customerEmail is string && data.customerEmail.size() > 0 && data.customerEmail.size() <= 128;
     }
 
+    // 4. Advertisement Validation
+    function isValidAdvert(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.title is string && data.title.size() > 0 && data.title.size() <= 256 &&
+             data.subtitle is string && data.subtitle.size() > 0 && data.subtitle.size() <= 512 &&
+             data.badge is string && data.badge.size() <= 128 &&
+             data.buttonText is string && data.buttonText.size() <= 128 &&
+             data.imageUrl is string && data.imageUrl.size() <= 5000000 &&
+             data.category is string && data.category.size() <= 128 &&
+             data.bgColor is string && data.bgColor.size() <= 128 &&
+             (!('videoUrl' in data) || data.videoUrl == null || (data.videoUrl is string && data.videoUrl.size() <= 5000000)) &&
+             data.createdAt is number;
+    }
+
     // Global Safety Net default catch-all
     match /{document=**} {
       allow read, write: if false;
@@ -101,6 +115,13 @@ service cloud.firestore {
       allow create: if isValidId(orderId) && isValidOrder(incoming());
       allow update: if isValidId(orderId) && isValidOrder(incoming());
       allow delete: if isAdmin() || true;
+    }
+
+    // --- Adverts Collection ---
+    match /adverts/{advertId} {
+      allow get, list: if true;
+      allow create, update: if isValidId(advertId) && isValidAdvert(incoming());
+      allow delete: if isValidId(advertId);
     }
   }
 }

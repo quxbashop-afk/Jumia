@@ -5,7 +5,10 @@ import {
   ChevronRight, Loader2
 } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
-import { Product, Order, SupportMessage, CartItem, ProductOption, ProductVariant } from '../types';
+import { Product, Order, SupportMessage, CartItem, ProductOption, ProductVariant, Advertisement } from '../types';
+import { db, OperationType, handleFirestoreError } from '../firebase';
+import { collection, onSnapshot, query, orderBy, setDoc, doc, deleteDoc } from 'firebase/firestore';
+
 
 /* ==========================================================================
    1. SELLER ZONE DASHBOARD
@@ -17,6 +20,7 @@ interface SellerDashboardProps {
 }
 
 export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct }: SellerDashboardProps) {
+  const [activeTab, setActiveTab] = useState<'catalog' | 'adverts'>('catalog');
   const [vendorName] = useState('Supreme Appliances Ltd');
   const [newProdName, setNewProdName] = useState('');
   const [newProdCategory, setNewProdCategory] = useState('Fashion & Apparel');
@@ -405,6 +409,117 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct }: 
     }
   };
 
+  // --- Storefront Advertisement Manager States ---
+  const [adverts, setAdverts] = useState<Advertisement[]>([]);
+  const [isAdFormOpen, setIsAdFormOpen] = useState(false);
+  const [editingAd, setEditingAd] = useState<Advertisement | null>(null);
+
+  const [adTitle, setAdTitle] = useState('');
+  const [adSubtitle, setAdSubtitle] = useState('');
+  const [adBadge, setAdBadge] = useState('');
+  const [adButtonText, setAdButtonText] = useState('SHOP DEALS');
+  const [adImageUrl, setAdImageUrl] = useState('');
+  const [adVideoUrl, setAdVideoUrl] = useState('');
+  const [adCategory, setAdCategory] = useState('Electronics & Appliances');
+  const [adBgColor, setAdBgColor] = useState('purple');
+  const [adError, setAdError] = useState('');
+  const [adSuccess, setAdSuccess] = useState('');
+  const [isAdSubmitting, setIsAdSubmitting] = useState(false);
+
+  // Subscribe to custom adverts from Firestore in real-time
+  useEffect(() => {
+    if (activeTab === 'adverts') {
+      const q = query(collection(db, 'adverts'), orderBy('createdAt', 'desc'));
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const ads: Advertisement[] = [];
+        snapshot.forEach((docSnap) => {
+          ads.push({ id: docSnap.id, ...docSnap.data() } as Advertisement);
+        });
+        setAdverts(ads);
+      }, (err) => {
+        console.error("Firestore subscription error for SellerDashboard:", err);
+      });
+      return () => unsubscribe();
+    }
+  }, [activeTab]);
+
+  const handleOpenAdForm = (ad: Advertisement | null = null) => {
+    setAdError('');
+    setAdSuccess('');
+    if (ad) {
+      setEditingAd(ad);
+      setAdTitle(ad.title);
+      setAdSubtitle(ad.subtitle);
+      setAdBadge(ad.badge || '');
+      setAdButtonText(ad.buttonText || 'SHOP DEALS');
+      setAdImageUrl(ad.imageUrl);
+      setAdVideoUrl(ad.videoUrl || '');
+      setAdCategory(ad.category || 'All Categories');
+      setAdBgColor(ad.bgColor || 'purple');
+    } else {
+      setEditingAd(null);
+      setAdTitle('');
+      setAdSubtitle('');
+      setAdBadge('LIMITED DEAL');
+      setAdButtonText('SHOP NOW');
+      setAdImageUrl('');
+      setAdVideoUrl('');
+      setAdCategory('Electronics & Appliances');
+      setAdBgColor('purple');
+    }
+    setIsAdFormOpen(true);
+  };
+
+  const handleSaveAd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAdError('');
+    setAdSuccess('');
+    
+    if (!adTitle.trim() || !adSubtitle.trim() || !adImageUrl.trim()) {
+      setAdError('Headline, description and image URL are required fields.');
+      return;
+    }
+
+    setIsAdSubmitting(true);
+    try {
+      const adId = editingAd ? editingAd.id : 'ad_' + Date.now();
+      const adData = {
+        id: adId,
+        title: adTitle.trim(),
+        subtitle: adSubtitle.trim(),
+        badge: adBadge.trim() || 'PROMOTION',
+        buttonText: adButtonText.trim() || 'VIEW DEALS',
+        imageUrl: adImageUrl.trim(),
+        videoUrl: adVideoUrl.trim() || null,
+        category: adCategory,
+        bgColor: adBgColor,
+        createdAt: editingAd ? editingAd.createdAt : Date.now()
+      };
+
+      await setDoc(doc(db, 'adverts', adId), adData);
+      
+      setAdSuccess(editingAd ? 'Advertisement banner updated successfully!' : 'New Advertisement banner published successfully!');
+      setTimeout(() => {
+        setIsAdFormOpen(false);
+        setEditingAd(null);
+      }, 1000);
+    } catch (err) {
+      console.error("Error saving advertisement:", err);
+      setAdError('Failed to save advertisement. Please verify field limits.');
+    } finally {
+      setIsAdSubmitting(false);
+    }
+  };
+
+  const handleDeleteAd = async (adId: string) => {
+    if (!window.confirm('Are you sure you want to remove this advertising banner?')) return;
+    try {
+      await deleteDoc(doc(db, 'adverts', adId));
+    } catch (err) {
+      console.error("Error deleting advertisement:", err);
+    }
+  };
+
   return (
     <div className="space-y-8 animate-fade-in font-sans">
       
@@ -435,8 +550,34 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct }: 
             </div>
           </div>
 
-          {/* Seller Metrics Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          {/* Sub-tab Navigation */}
+          <div className="flex border-b border-gray-100 gap-6 mt-4">
+            <button
+              onClick={() => setActiveTab('catalog')}
+              className={`pb-3 text-xs font-black uppercase tracking-widest transition-all border-b-2 cursor-pointer ${
+                activeTab === 'catalog'
+                  ? 'border-[#7c3aed] text-[#7c3aed]'
+                  : 'border-transparent text-gray-400 hover:text-gray-600'
+              }`}
+            >
+              🏷️ Catalog & Inventory
+            </button>
+            <button
+              onClick={() => setActiveTab('adverts')}
+              className={`pb-3 text-xs font-black uppercase tracking-widest transition-all border-b-2 cursor-pointer ${
+                activeTab === 'adverts'
+                  ? 'border-[#7c3aed] text-[#7c3aed]'
+                  : 'border-transparent text-gray-400 hover:text-gray-600'
+              }`}
+            >
+              📢 Promotions & Adverts
+            </button>
+          </div>
+
+          {activeTab === 'catalog' ? (
+            <>
+              {/* Seller Metrics Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="bg-white p-5 rounded border border-gray-200 shadow-xs flex items-center justify-between">
               <div>
                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Total Sales (Gross)</p>
@@ -621,6 +762,273 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct }: 
               </table>
             </div>
           </div>
+        </>
+          ) : (
+            <div className="space-y-6 animate-fade-in text-left">
+              <div className="bg-white border border-gray-200 rounded shadow-xs overflow-hidden p-6 space-y-6">
+                
+                {/* Header controls */}
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-100 pb-4 font-sans">
+                  <div>
+                    <h3 className="text-xs font-black text-neutral-900 uppercase tracking-widest">Storefront Advertising Banners ({adverts.length})</h3>
+                    <p className="text-[11px] text-gray-400 mt-0.5 font-normal normal-case">Configure live promotions, discount badges and target landing departments.</p>
+                  </div>
+                  {!isAdFormOpen && (
+                    <button
+                      onClick={() => handleOpenAdForm(null)}
+                      className="bg-[#7c3aed] hover:bg-purple-700 text-white text-xs font-black px-4 py-2 rounded uppercase tracking-wider transition duration-150 flex items-center gap-1.5 cursor-pointer shadow-xs font-sans"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Add New Advert</span>
+                    </button>
+                  )}
+                </div>
+
+                {isAdFormOpen ? (
+                  /* Create / Edit Form */
+                  <form onSubmit={handleSaveAd} className="bg-[#fafafa] rounded-lg p-6 border border-neutral-200/60 max-w-2xl mx-auto space-y-4 font-sans">
+                    <span className="text-[10px] font-black uppercase text-[#7c3aed] tracking-widest block mb-2">
+                      {editingAd ? '✏️ Edit Advertising Banner' : '✨ Design Promotion banner'}
+                    </span>
+                    
+                    {adError && (
+                      <div className="p-3 bg-red-50 text-red-600 text-xs rounded border border-red-200 font-semibold">{adError}</div>
+                    )}
+                    {adSuccess && (
+                      <div className="p-3 bg-green-50 text-green-700 text-xs rounded border border-green-200 font-semibold">{adSuccess}</div>
+                    )}
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-black text-neutral-500 uppercase tracking-wider block">Banner Department Target *</label>
+                        <select
+                          value={adCategory}
+                          onChange={(e) => setAdCategory(e.target.value)}
+                          className="w-full bg-white border border-neutral-300 rounded p-2 text-xs font-medium focus:outline-none focus:border-[#7c3aed]"
+                        >
+                          <option>All Categories</option>
+                          <option>Electronics & Appliances</option>
+                          <option>Phones & Tablets</option>
+                          <option>Computers & Accessories</option>
+                          <option>Fashion & Apparel</option>
+                          <option>Supermarket & Groceries</option>
+                          <option>Health & Beauty</option>
+                        </select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-black text-neutral-500 uppercase tracking-wider block">Background Visual Theme *</label>
+                        <select
+                          value={adBgColor}
+                          onChange={(e) => setAdBgColor(e.target.value)}
+                          className="w-full bg-white border border-neutral-300 rounded p-2 text-xs font-medium focus:outline-none focus:border-[#7c3aed]"
+                        >
+                          <option value="purple">Aesthetic Purple Glow</option>
+                          <option value="blue">Deep Ocean Indigo</option>
+                          <option value="green">Organic Fresh Green</option>
+                          <option value="orange">Hot Alert Red-Orange</option>
+                          <option value="midnight">Midnight Elegant Charcoal</option>
+                          <option value="pink">Sunset Rose Fuchsia</option>
+                        </select>
+                      </div>
+
+                      <div className="space-y-1 sm:col-span-2">
+                        <label className="text-[11px] font-black text-neutral-500 uppercase tracking-wider block">Banner Headline / Title (Up to 100 chars) *</label>
+                        <input
+                          type="text"
+                          required
+                          maxLength={100}
+                          value={adTitle}
+                          onChange={(e) => setAdTitle(e.target.value)}
+                          placeholder="e.g. Back to School Laptop deals! 💻"
+                          className="w-full bg-white border border-neutral-300 rounded p-2 text-xs font-medium focus:outline-none focus:border-[#7c3aed]"
+                        />
+                      </div>
+
+                      <div className="space-y-1 sm:col-span-2">
+                        <label className="text-[11px] font-black text-neutral-500 uppercase tracking-wider block">Sub-headline / Detail text *</label>
+                        <textarea
+                          required
+                          rows={2}
+                          maxLength={250}
+                          value={adSubtitle}
+                          onChange={(e) => setAdSubtitle(e.target.value)}
+                          placeholder="e.g. Save flat 20% on all tech equipment models with instant merchant shipping guarantee."
+                          className="w-full bg-white border border-neutral-300 rounded p-2 text-xs font-medium focus:outline-none focus:border-[#7c3aed]"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-black text-neutral-500 uppercase tracking-wider block">Promo Badge label</label>
+                        <input
+                          type="text"
+                          value={adBadge}
+                          onChange={(e) => setAdBadge(e.target.value)}
+                          placeholder="e.g. BEST OFFER"
+                          className="w-full bg-white border border-neutral-300 rounded p-2 text-xs font-medium focus:outline-none focus:border-[#7c3aed]"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-black text-neutral-500 uppercase tracking-wider block">Call-to-Action Action Button</label>
+                        <input
+                          type="text"
+                          value={adButtonText}
+                          onChange={(e) => setAdButtonText(e.target.value)}
+                          placeholder="e.g. EXPLORE DEALS"
+                          className="w-full bg-white border border-neutral-300 rounded p-2 text-xs font-medium focus:outline-none focus:border-[#7c3aed]"
+                        />
+                      </div>
+
+                      <div className="space-y-1 sm:col-span-2">
+                        <label className="text-[11px] font-black text-neutral-500 uppercase tracking-wider block">Banner Image URL *</label>
+                        <input
+                          type="url"
+                          required
+                          value={adImageUrl}
+                          onChange={(e) => setAdImageUrl(e.target.value)}
+                          placeholder="https://images.unsplash.com/photo-..."
+                          className="w-full bg-white border border-neutral-300 rounded p-2 text-xs font-medium focus:outline-none focus:border-[#7c3aed] font-mono text-[11px]"
+                        />
+                        <div className="flex gap-2 flex-wrap pt-1.5 font-sans">
+                          <span className="text-[9px] font-semibold text-neutral-400 self-center">Presets:</span>
+                          <button
+                            type="button"
+                            onClick={() => setAdImageUrl('https://images.unsplash.com/photo-1498049794561-7780e7231661?auto=format&fit=crop&w=800&q=80')}
+                            className="bg-neutral-200 hover:bg-neutral-300 text-[10px] text-neutral-800 font-medium py-1 px-2.5 rounded transition cursor-pointer"
+                          >
+                            Electronics Tech
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setAdImageUrl('https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=800&q=80')}
+                            className="bg-neutral-200 hover:bg-neutral-300 text-[10px] text-neutral-800 font-medium py-1 px-2.5 rounded transition cursor-pointer"
+                          >
+                            Supermarket Groceries
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setAdImageUrl('https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=800&q=80')}
+                            className="bg-neutral-200 hover:bg-neutral-300 text-[10px] text-neutral-800 font-medium py-1 px-2.5 rounded transition cursor-pointer"
+                          >
+                            Fashion Luxury
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1 sm:col-span-2">
+                        <label className="text-[11px] font-black text-neutral-500 uppercase tracking-wider block">Promo Video URL (Optional mp4 link)</label>
+                        <input
+                          type="url"
+                          value={adVideoUrl}
+                          onChange={(e) => setAdVideoUrl(e.target.value)}
+                          placeholder="e.g. https://example.com/promo.mp4"
+                          className="w-full bg-white border border-neutral-300 rounded p-2 text-xs font-medium focus:outline-none focus:border-[#7c3aed] font-mono text-[11px]"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex gap-3 justify-end pt-4 border-t border-neutral-200">
+                      <button
+                        type="button"
+                        onClick={() => setIsAdFormOpen(false)}
+                        className="bg-gray-200 hover:bg-gray-300 text-neutral-700 text-xs font-black px-5 py-2.5 rounded uppercase tracking-wider transition cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={isAdSubmitting}
+                        className="bg-[#7c3aed] hover:bg-purple-700 disabled:bg-purple-400 text-white text-xs font-black px-5 py-2.5 rounded uppercase tracking-wider transition flex items-center gap-1.5 cursor-pointer"
+                      >
+                        {isAdSubmitting && <Loader2 className="w-3 h-3 animate-spin" />}
+                        <span>{editingAd ? 'Save Changes' : 'Publish advertisement Banner'}</span>
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  /* Listed banners view table */
+                  <div>
+                    {adverts.length === 0 ? (
+                      <div className="text-center py-12 border border-dashed border-gray-200 rounded bg-[#fafafa] space-y-2">
+                        <span className="text-4xl block">📢</span>
+                        <h4 className="text-xs font-black uppercase text-neutral-800">No Custom Adverts Yet</h4>
+                        <p className="text-[11px] text-neutral-400 max-w-xs mx-auto">Publish banner slots right here. They will automatically render first inside the storefront home carousel!</p>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenAdForm(null)}
+                          className="inline-flex items-center gap-1.5 text-xs text-[#7c3aed] hover:text-purple-700 font-bold bg-purple-50 hover:bg-purple-100 py-2 px-4 rounded border border-purple-200 transition cursor-pointer"
+                        >
+                          <Plus className="w-4 h-4" />
+                          <span>Add Your First Advert</span>
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto border border-gray-200 rounded">
+                        <table className="w-full text-left border-collapse text-xs">
+                          <thead className="bg-[#fafafa] text-neutral-400 font-bold uppercase border-b border-gray-200 font-sans">
+                            <tr>
+                              <th className="p-4 font-semibold text-[10px] tracking-wider">Preview / Badge</th>
+                              <th className="p-4 font-semibold text-[10px] tracking-wider">Title & Subtitle</th>
+                              <th className="p-4 font-semibold text-[10px] tracking-wider">Target Category</th>
+                              <th className="p-4 font-semibold text-[10px] tracking-wider text-right">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100 bg-white">
+                            {adverts.map((ad) => (
+                              <tr key={ad.id} className="hover:bg-neutral-50 transition-colors">
+                                <td className="p-4 max-w-[130px]">
+                                  <div className="relative group rounded overflow-hidden shadow-xs cursor-pointer border border-neutral-200 h-14 bg-neutral-100">
+                                    <img
+                                      src={ad.imageUrl}
+                                      alt={ad.title}
+                                      className="w-full h-full object-cover"
+                                      referrerPolicy="no-referrer"
+                                    />
+                                    <span className="absolute inset-0 bg-black/40 group-hover:bg-black/25 transition duration-150" />
+                                    <span className="absolute top-1 left-1 bg-black/70 text-white text-[8px] px-1 py-0.5 rounded font-black uppercase max-w-[100px] truncate">
+                                      {ad.badge || 'PROMOTION'}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="p-4">
+                                  <span className="font-extrabold text-neutral-800 text-xs block leading-tight">{ad.title}</span>
+                                  <span className="text-[10px] text-gray-400 mt-0.5 block line-clamp-1">{ad.subtitle}</span>
+                                </td>
+                                <td className="p-4">
+                                  <span className="px-2.5 py-1 bg-purple-50 text-[#7c3aed] border border-purple-100 font-extrabold text-[9px] rounded uppercase tracking-wider">
+                                    {ad.category || 'All Categories'}
+                                  </span>
+                                </td>
+                                <td className="p-4 text-right whitespace-nowrap space-x-1.5 font-sans">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenAdForm(ad)}
+                                    className="bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-bold text-[10px] px-2.5 py-1.5 rounded uppercase tracking-wider transition inline-flex items-center cursor-pointer"
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteAd(ad.id)}
+                                    className="bg-red-50 hover:bg-red-100 text-red-600 p-1.5 rounded transition cursor-pointer inline-flex items-center"
+                                    aria-label="Delete banner"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+              </div>
+            </div>
+          )}
         </>
       ) : (
         /* ==========================================================================

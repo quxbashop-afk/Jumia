@@ -50,6 +50,24 @@
         "name": { "type": "string" }
       },
       "required": ["email", "name"]
+    },
+    "Advertisement": {
+      "title": "Advertisement",
+      "description": "An advertisement slide shown on the storefront's carousel",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "subtitle": { "type": "string" },
+        "badge": { "type": "string" },
+        "buttonText": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "videoUrl": { "type": "string" },
+        "category": { "type": "string" },
+        "bgColor": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["id", "title", "subtitle", "badge", "buttonText", "imageUrl", "category", "bgColor", "createdAt"]
     }
   },
   "firestore": {
@@ -64,6 +82,10 @@
     "users/{userId}": {
       "schema": "User",
       "description": "User profile records by auth uid"
+    },
+    "adverts/{advertId}": {
+      "schema": "Advertisement",
+      "description": "The carousel advertisements collection"
     }
   }
 }

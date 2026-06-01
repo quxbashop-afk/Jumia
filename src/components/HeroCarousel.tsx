@@ -1,14 +1,60 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Gift, Percent, Calendar, Sparkles } from 'lucide-react';
+import { db, OperationType, handleFirestoreError } from '../firebase';
+import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { Advertisement } from '../types';
 
 interface HeroCarouselProps {
   onSelectCategory: (category: string) => void;
 }
 
+const resolveBgGradient = (color: string) => {
+  if (!color) return 'from-purple-700 via-violet-500 to-fuchsia-400';
+  if (color.startsWith('from-')) return color;
+  
+  switch (color.toLowerCase()) {
+    case 'indigo':
+    case 'blue':
+      return 'from-blue-700 via-indigo-600 to-purple-600';
+    case 'emerald':
+    case 'green':
+      return 'from-emerald-700 via-teal-600 to-cyan-600';
+    case 'orange':
+    case 'red':
+      return 'from-orange-600 via-red-500 to-amber-500';
+    case 'midnight':
+    case 'dark':
+      return 'from-neutral-950 via-neutral-900 to-gray-800';
+    case 'fuchsia':
+    case 'pink':
+      return 'from-fuchsia-700 via-pink-600 to-rose-500';
+    case 'purple':
+    default:
+      return 'from-purple-700 via-violet-500 to-fuchsia-400';
+  }
+};
+
 export default function HeroCarousel({ onSelectCategory }: HeroCarouselProps) {
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [customAdverts, setCustomAdverts] = useState<Advertisement[]>([]);
 
-  const slides = [
+  // 1. Fetch custom advertisements in real-time from Firestore
+  useEffect(() => {
+    const q = query(collection(db, 'adverts'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const ads: Advertisement[] = [];
+      snapshot.forEach((docSnap) => {
+        ads.push({ id: docSnap.id, ...docSnap.data() } as Advertisement);
+      });
+      setCustomAdverts(ads);
+    }, (error) => {
+      console.warn("Adverts subscription warning (offline / guest permission check):", error);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const defaultSlides = [
     {
       id: 'anniversary-sale',
       title: 'Quxba Anniversary Mega Sale is Live! 🌟',
@@ -43,12 +89,39 @@ export default function HeroCarousel({ onSelectCategory }: HeroCarouselProps) {
     }
   ];
 
+  // Convert custom advertisements to slides style
+  const formattedCustomSlides = customAdverts.map(ad => ({
+    id: ad.id,
+    title: ad.title,
+    subtitle: ad.subtitle,
+    buttonText: ad.buttonText || 'VIEW DEALS',
+    badge: ad.badge || 'PROMOTION',
+    image: ad.imageUrl,
+    videoUrl: ad.videoUrl,
+    bgColor: resolveBgGradient(ad.bgColor),
+    action: () => onSelectCategory(ad.category || 'All Categories')
+  }));
+
+  // Combine, putting custom customAdverts first so they see their changes on top, then fallbacks
+  const slides = formattedCustomSlides.length > 0 
+    ? [...formattedCustomSlides, ...defaultSlides] 
+    : defaultSlides;
+
+  useEffect(() => {
+    setCurrentSlide(0);
+  }, [slides.length]);
+
   useEffect(() => {
     const timer = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % slides.length);
+      setCurrentSlide((prev) => {
+        if (slides.length === 0) return 0;
+        return (prev + 1) % slides.length;
+      });
     }, 6000);
     return () => clearInterval(timer);
   }, [slides.length]);
+
+  if (slides.length === 0) return null;
 
   return (
     <div className="relative overflow-hidden bg-white rounded-xl shadow-md border border-gray-100" id="anniversary-hero">
@@ -142,3 +215,4 @@ export default function HeroCarousel({ onSelectCategory }: HeroCarouselProps) {
     </div>
   );
 }
+

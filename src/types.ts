@@ -76,3 +76,17 @@ export interface UserAccount {
   name: string;
 }
 
+export interface Advertisement {
+  id: string;
+  title: string;
+  subtitle: string;
+  badge: string;
+  buttonText: string;
+  imageUrl: string;
+  videoUrl?: string;
+  category: string;
+  bgColor: string; // e.g. "from-purple-700 via-violet-500 to-fuchsia-400" or a simple preset key
+  createdAt: number;
+}
+
+
