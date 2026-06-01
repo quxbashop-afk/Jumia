@@ -19,6 +19,31 @@ interface SellerDashboardProps {
   onDeleteProduct: (id: string) => void;
 }
 
+const resolveBgGradient = (color: string) => {
+  if (!color) return 'from-purple-700 via-violet-500 to-fuchsia-400';
+  if (color.startsWith('from-')) return color;
+  
+  switch (color.toLowerCase()) {
+    case 'indigo':
+    case 'blue':
+      return 'from-blue-700 via-indigo-600 to-purple-600';
+    case 'emerald':
+    case 'green':
+      return 'from-emerald-700 via-teal-600 to-cyan-600';
+    case 'orange':
+    case 'red':
+      return 'from-orange-600 via-red-500 to-amber-500';
+    case 'midnight':
+    case 'dark':
+      return 'from-neutral-950 via-neutral-900 to-gray-800';
+    case 'fuchsia':
+    case 'pink':
+      return 'from-fuchsia-700 via-pink-600 to-rose-500';
+    default:
+      return 'from-purple-700 via-violet-500 to-fuchsia-400';
+  }
+};
+
 export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct }: SellerDashboardProps) {
   const [activeTab, setActiveTab] = useState<'catalog' | 'adverts'>('catalog');
   const [vendorName] = useState('Supreme Appliances Ltd');
@@ -60,6 +85,18 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct }: 
   // --- Squarespace Commerce UI States ---
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
+
+  // --- Coupled Product Advertisement Poster states ---
+  const [productAdSubTab, setProductAdSubTab] = useState<'details' | 'poster'>('details');
+  const [isProductAdEnabled, setIsProductAdEnabled] = useState(false);
+  const [productAdTitle, setProductAdTitle] = useState('');
+  const [productAdSubtitle, setProductAdSubtitle] = useState('');
+  const [productAdBadge, setProductAdBadge] = useState('EXCLUSIVE OFFER');
+  const [productAdButtonText, setProductAdButtonText] = useState('EXPLORE NOW');
+  const [productAdImageUrl, setProductAdImageUrl] = useState('');
+  const [productAdVideoUrl, setProductAdVideoUrl] = useState('');
+  const [productAdCategory, setProductAdCategory] = useState('Fashion & Apparel');
+  const [productAdBgColor, setProductAdBgColor] = useState('purple');
 
   // Logistics parameters matching Squarespace /config/commerce exactly
   const [inventorySku, setInventorySku] = useState('');
@@ -242,6 +279,19 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct }: 
     setNewOptionValues('');
     setFormError('');
     setFormSuccess('');
+
+    // Reset ad poster states
+    setIsProductAdEnabled(false);
+    setProductAdTitle('');
+    setProductAdSubtitle('');
+    setProductAdBadge('LIMITED DEAL');
+    setProductAdButtonText('BUY NOW');
+    setProductAdImageUrl('');
+    setProductAdVideoUrl('');
+    setProductAdCategory('Fashion & Apparel');
+    setProductAdBgColor('purple');
+    setProductAdSubTab('details');
+
     setIsEditorOpen(true);
   };
 
@@ -295,12 +345,37 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct }: 
     setNewOptionName('');
     setNewOptionValues('');
 
+    // Load paired ad poster from Firestore adverts cache
+    const associatedAd = adverts.find(ad => ad.id === `ad_${p.id}`);
+    if (associatedAd) {
+      setIsProductAdEnabled(true);
+      setProductAdTitle(associatedAd.title);
+      setProductAdSubtitle(associatedAd.subtitle);
+      setProductAdBadge(associatedAd.badge || 'PROMOTION');
+      setProductAdButtonText(associatedAd.buttonText || 'SHOP DEAL');
+      setProductAdImageUrl(associatedAd.imageUrl || p.imageUrl || '');
+      setProductAdVideoUrl(associatedAd.videoUrl || '');
+      setProductAdCategory(associatedAd.category || p.category);
+      setProductAdBgColor(associatedAd.bgColor || 'purple');
+    } else {
+      setIsProductAdEnabled(false);
+      setProductAdTitle('');
+      setProductAdSubtitle('');
+      setProductAdBadge('LIMITED DEAL');
+      setProductAdButtonText('BUY NOW');
+      setProductAdImageUrl('');
+      setProductAdVideoUrl('');
+      setProductAdCategory(p.category);
+      setProductAdBgColor('purple');
+    }
+    setProductAdSubTab('details');
+
     setFormError('');
     setFormSuccess('');
     setIsEditorOpen(true);
   };
 
-  const handleCreateProduct = (e: React.FormEvent) => {
+  const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
 
     // The primary image is the first slot that actually has a value, or the manual model fallback value
@@ -370,25 +445,47 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct }: 
     setFormSuccess('');
     setFormError('');
 
-    setTimeout(() => {
+    try {
+      // Synchronize paired Campaign Ad Poster
+      const adDocId = `ad_${targetProductId}`;
+      if (isProductAdEnabled) {
+        const associatedAdData = {
+          id: adDocId,
+          title: productAdTitle || newProdName,
+          subtitle: productAdSubtitle || `Get high-quality ${newProdName} today at the exclusive price of ₦${priceNum.toLocaleString()}!`,
+          badge: productAdBadge || 'PROMOTION',
+          buttonText: productAdButtonText || 'SHOP DEAL',
+          imageUrl: productAdImageUrl || primaryImg,
+          videoUrl: productAdVideoUrl || '',
+          category: productAdCategory || newProdCategory,
+          bgColor: productAdBgColor || 'purple',
+          createdAt: Date.now()
+        };
+        await setDoc(doc(db, 'adverts', adDocId), associatedAdData);
+      } else {
+        await deleteDoc(doc(db, 'adverts', adDocId));
+      }
+
       onAddNewProduct(newProduct);
       setFormSuccess(editingProductId 
-        ? 'Squarespace Commerce: Product configuration synchronized and updated!' 
+        ? 'Squarespace Commerce: Product and Advertisement Poster synchronized successfully!' 
         : (isApprovedDirectly 
-          ? 'Squarespace Commerce: Verified listing published directly to Storefront!' 
+          ? 'Squarespace Commerce: Verified listing and Advertisement Poster published directly!' 
           : 'Squarespace Commerce: Draft saved successfully! Status set to Pending Review.'
         )
       );
-      
+    } catch (saveErr: any) {
+      console.warn("Failed to sync advertisement poster, falling back to product-only save:", saveErr);
+      onAddNewProduct(newProduct);
+      setFormSuccess('Squarespace Commerce: Product saved successfully.');
+    } finally {
       setIsSubmitting(false);
-      
-      // Keep alert feedback elegant and close panel
       setTimeout(() => {
         setIsEditorOpen(false);
         setEditingProductId(null);
         setFormSuccess('');
-      }, 1000);
-    }, 800);
+      }, 1200);
+    }
   };
 
   const handleApplyImageInSlot = (url: string) => {
@@ -428,20 +525,18 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct }: 
 
   // Subscribe to custom adverts from Firestore in real-time
   useEffect(() => {
-    if (activeTab === 'adverts') {
-      const q = query(collection(db, 'adverts'), orderBy('createdAt', 'desc'));
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-        const ads: Advertisement[] = [];
-        snapshot.forEach((docSnap) => {
-          ads.push({ id: docSnap.id, ...docSnap.data() } as Advertisement);
-        });
-        setAdverts(ads);
-      }, (err) => {
-        console.error("Firestore subscription error for SellerDashboard:", err);
+    const q = query(collection(db, 'adverts'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const ads: Advertisement[] = [];
+      snapshot.forEach((docSnap) => {
+        ads.push({ id: docSnap.id, ...docSnap.data() } as Advertisement);
       });
-      return () => unsubscribe();
-    }
-  }, [activeTab]);
+      setAdverts(ads);
+    }, (err) => {
+      console.error("Firestore subscription error for SellerDashboard:", err);
+    });
+    return () => unsubscribe();
+  }, []);
 
   const handleOpenAdForm = (ad: Advertisement | null = null) => {
     setAdError('');
@@ -1081,9 +1176,45 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct }: 
             </div>
           </div>
 
+          {/* Sub-tab Navigation for Product Editor to Design Poster */}
+          <div className="flex border-b border-gray-200 gap-6 pb-0.5">
+            <button
+              type="button"
+              onClick={() => setProductAdSubTab('details')}
+              className={`pb-2.5 text-xs font-black uppercase tracking-widest border-b-2 cursor-pointer transition ${
+                productAdSubTab === 'details'
+                  ? 'border-neutral-900 text-neutral-900'
+                  : 'border-transparent text-gray-400 hover:text-gray-600'
+              }`}
+            >
+              📦 Product Details & Specs
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setProductAdSubTab('poster');
+                // Auto-populate when they click the Poster tab if they are currently blank
+                if (!productAdTitle) setProductAdTitle(newProdName);
+                if (!productAdImageUrl) {
+                  const mainImg = productImages[0] || newProdImageUrl;
+                  if (mainImg) setProductAdImageUrl(mainImg);
+                }
+                if (!productAdCategory) setProductAdCategory(newProdCategory);
+              }}
+              className={`pb-2.5 text-xs font-black uppercase tracking-widest border-b-2 cursor-pointer transition flex items-center gap-1.5 ${
+                productAdSubTab === 'poster'
+                  ? 'border-[#7c3aed] text-[#7c3aed]'
+                  : 'border-transparent text-gray-400 hover:text-gray-600'
+              }`}
+            >
+              📢 Advertisement Poster & Banners {isProductAdEnabled && <span className="bg-purple-100 text-[#7c3aed] text-[8.5px] px-1.5 py-0.5 rounded-sm font-black uppercase font-sans">LIVE</span>}
+            </button>
+          </div>
+
           <form onSubmit={handleCreateProduct} className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-            
-            {/* LEFT COLUMN: Main specifications details (7 cols out of 12) */}
+            {productAdSubTab === 'details' ? (
+              <>
+                {/* LEFT COLUMN: Main specifications details (7 cols out of 12) */}
             <div className="lg:col-span-7 space-y-6">
               
               {/* Card 1: Core Product Title & Writing Description */}
@@ -1878,6 +2009,278 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct }: 
               </div>
 
             </div>
+              </>
+            ) : (
+              <div className="lg:col-span-12 space-y-6 animate-fade-in text-left">
+                
+                {/* Intro Card */}
+                <div className="bg-white p-6 border border-gray-200 rounded-lg shadow-xs flex flex-col md:flex-row gap-5 justify-between items-start md:items-center">
+                  <div className="space-y-1 max-w-xl">
+                    <span className="text-[10px] bg-purple-50 text-[#7c3aed] border border-purple-200 font-extrabold px-2.5 py-0.5 rounded uppercase tracking-wider font-sans">Campaign Spotlight Channel</span>
+                    <h4 className="text-sm font-black text-neutral-900 uppercase tracking-tight mt-1 font-sans">Storefront Poster & Banner Campaign Configuration</h4>
+                    <p className="text-[11.5px] text-gray-500 font-normal leading-relaxed font-sans">
+                      Transform this physical product into a stylized high-conversion promotional poster highlighted directly inside the landing page sliding carousel for all visiting customers to see first.
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-between bg-[#fafafa] border border-gray-200 p-4 rounded-lg shadow-xs w-full md:w-auto self-stretch md:self-auto gap-4 font-sans">
+                    <div className="text-left font-sans pr-4">
+                      <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block leading-none">Campaign Status</span>
+                      <span className="text-xs font-bold uppercase block mt-1.5 whitespace-nowrap">
+                        {isProductAdEnabled ? '📢 Active Spot Banner' : '💤 Standard Listing Only'}
+                      </span>
+                    </div>
+                    {/* Retro toggle button */}
+                    <button
+                      type="button"
+                      onClick={() => setIsProductAdEnabled(!isProductAdEnabled)}
+                      className={`w-14 h-7 flex items-center rounded-full p-1 cursor-pointer transition-colors duration-200 ${
+                        isProductAdEnabled ? 'bg-[#7c3aed]' : 'bg-gray-300'
+                      }`}
+                    >
+                      <div className={`bg-white w-5 h-5 rounded-full shadow-md transform duration-200 ${
+                        isProductAdEnabled ? 'translate-x-7' : 'translate-x-0'
+                      }`} />
+                    </button>
+                  </div>
+                </div>
+
+                {isProductAdEnabled ? (
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 font-sans">
+                    
+                    {/* Fields: 7 cols */}
+                    <div className="lg:col-span-7 space-y-4">
+                      <div className="bg-white p-6 border border-gray-200 rounded-lg shadow-xs space-y-4">
+                        <div className="flex justify-between items-center pb-2 border-b border-gray-100 font-sans">
+                          <span className="text-[10px] font-black uppercase text-neutral-500 tracking-wider">Design & Copy Attributes</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              // Perform auto-population
+                              setProductAdTitle(newProdName);
+                              const mainImg = productImages[0] || newProdImageUrl;
+                              if (mainImg) setProductAdImageUrl(mainImg);
+                              setProductAdCategory(newProdCategory);
+                              const basePrice = parseFloat(newProdPrice) || 0;
+                              setProductAdSubtitle(`Buy ${newProdName} today at the exclusive merchant price of ₦${basePrice.toLocaleString()} only!`);
+                            }}
+                            className="bg-purple-100 hover:bg-purple-200 border border-purple-300 text-[#7c3aed] text-[10px] font-black px-3 py-1 rounded transition uppercase tracking-wider cursor-pointer font-sans"
+                          >
+                            🪄 Auto-Fill From Product Data
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-1 block md:col-span-2">
+                            <label className="text-[10px] font-black text-neutral-500 uppercase tracking-wider">Poster Display Headline / Title *</label>
+                            <input
+                              type="text"
+                              required={isProductAdEnabled}
+                              maxLength={100}
+                              value={productAdTitle}
+                              onChange={(e) => setProductAdTitle(e.target.value)}
+                              placeholder="e.g. Special Discount on Premium Hoodies!"
+                              className="w-full bg-white border border-gray-250 p-2 text-xs font-semibold rounded focus:ring-1 focus:ring-black focus:outline-none"
+                            />
+                          </div>
+
+                          <div className="space-y-1 block md:col-span-2">
+                            <label className="text-[10px] font-black text-neutral-500 uppercase tracking-wider">Poster Detailed Descriptions *</label>
+                            <textarea
+                              rows={3}
+                              required={isProductAdEnabled}
+                              maxLength={250}
+                              value={productAdSubtitle}
+                              onChange={(e) => setProductAdSubtitle(e.target.value)}
+                              placeholder="e.g. Get 20% off plus direct verified seller dispatch on our anniversary products."
+                              className="w-full bg-white border border-gray-250 p-2 text-xs font-semibold rounded focus:ring-1 focus:ring-black focus:outline-none"
+                            />
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-black text-neutral-500 uppercase tracking-wider">Promo Badge Tag</label>
+                            <input
+                              type="text"
+                              value={productAdBadge}
+                              onChange={(e) => setProductAdBadge(e.target.value)}
+                              placeholder="e.g. MEGA OFFERS"
+                              className="w-full bg-white border border-gray-250 p-2 text-xs font-semibold rounded focus:ring-1 focus:ring-black focus:outline-none"
+                            />
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-black text-neutral-500 uppercase tracking-wider">Button CTA text</label>
+                            <input
+                              type="text"
+                              value={productAdButtonText}
+                              onChange={(e) => setProductAdButtonText(e.target.value)}
+                              placeholder="e.g. SHOP DEALS"
+                              className="w-full bg-white border border-gray-250 p-2 text-xs font-semibold rounded focus:ring-1 focus:ring-black focus:outline-none"
+                            />
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-black text-neutral-500 uppercase tracking-wider">Landing Category Filter</label>
+                            <select
+                              value={productAdCategory}
+                              onChange={(e) => setProductAdCategory(e.target.value)}
+                              className="w-full bg-white border border-gray-250 p-2 text-xs font-semibold rounded focus:outline-none focus:ring-1 focus:ring-black text-neutral-800 text-[11px]"
+                            >
+                              <option>Fashion & Apparel</option>
+                              <option>Electronics & Appliances</option>
+                              <option>Phones & Tablets</option>
+                              <option>Computers & Accessories</option>
+                              <option>Supermarket & Groceries</option>
+                              <option>Health & Beauty</option>
+                            </select>
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-black text-neutral-500 uppercase tracking-wider">Background Color Theme</label>
+                            <select
+                              value={productAdBgColor}
+                              onChange={(e) => setProductAdBgColor(e.target.value)}
+                              className="w-full bg-white border border-gray-250 p-2 text-xs font-semibold rounded focus:outline-none focus:ring-1 focus:ring-black text-neutral-800 text-[11px]"
+                            >
+                              <option value="purple">Aesthetic Purple Glow</option>
+                              <option value="blue">Deep Ocean Indigo</option>
+                              <option value="green">Organic Fresh Green</option>
+                              <option value="orange">Hot Alert Red-Orange</option>
+                              <option value="midnight">Midnight Elegant Charcoal</option>
+                              <option value="pink">Sunset Rose Fuchsia</option>
+                            </select>
+                          </div>
+
+                          <div className="space-y-1 block md:col-span-2">
+                            <div className="flex justify-between items-center font-sans mb-1">
+                              <label className="text-[10px] font-black text-neutral-500 uppercase tracking-wider block">Custom Poster Image URL *</label>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const mainImg = productImages[0] || newProdImageUrl;
+                                  if (mainImg) setProductAdImageUrl(mainImg);
+                                }}
+                                className="text-[#7c3aed] text-[9.5px] font-bold uppercase transition hover:underline cursor-pointer"
+                              >
+                                Sync from main product image
+                              </button>
+                            </div>
+                            <input
+                              type="url"
+                              required={isProductAdEnabled}
+                              value={productAdImageUrl}
+                              onChange={(e) => setProductAdImageUrl(e.target.value)}
+                              placeholder="https://images.unsplash.com/photo-..."
+                              className="w-full bg-white border border-gray-250 p-2 text-xs font-mono text-[11px] rounded focus:ring-1 focus:ring-black focus:outline-none"
+                            />
+                            {/* Preset graphics selection */}
+                            <div className="flex gap-2 flex-wrap pt-1.5 font-sans">
+                              <span className="text-[9px] font-semibold text-neutral-400 self-center">Quick Preset background designs:</span>
+                              <button
+                                type="button"
+                                onClick={() => setProductAdImageUrl('https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?auto=format&fit=crop&w=1200&q=80')}
+                                className="bg-neutral-100 hover:bg-neutral-200 text-[9px] font-bold text-neutral-700 py-0.5 px-1.5 rounded transition cursor-pointer"
+                              >
+                                Promo Anniversary Red
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setProductAdImageUrl('https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=1200&q=80')}
+                                className="bg-neutral-100 hover:bg-neutral-200 text-[9px] font-bold text-neutral-700 py-0.5 px-1.5 rounded transition cursor-pointer"
+                              >
+                                Luxury Shop Rack
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="space-y-1 block md:col-span-2">
+                            <label className="text-[10px] font-black text-neutral-500 uppercase tracking-wider block">Promo Video URL (Optional mp4 link)</label>
+                            <input
+                              type="url"
+                              value={productAdVideoUrl}
+                              onChange={(e) => setProductAdVideoUrl(e.target.value)}
+                              placeholder="e.g. https://assets.mixkit.co/videos/preview/mixkit-pour-honey-into-a-fresh-fruit-salad-40088-large.mp4"
+                              className="w-full bg-white border border-gray-250 p-2 text-xs font-mono text-[11px] rounded focus:ring-1 focus:ring-black focus:outline-none"
+                            />
+                          </div>
+
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Live preview: 5 cols */}
+                    <div className="lg:col-span-5 space-y-4 font-sans">
+                      <div className="bg-white p-6 border border-gray-200 rounded-lg shadow-xs space-y-4">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block font-sans">📺 LIVE CAROUSEL PREVIEW FOR BUYERS</span>
+                        
+                        <div className={`relative overflow-hidden bg-gradient-to-br ${resolveBgGradient(productAdBgColor)} rounded-lg text-white p-6 justify-between items-start flex flex-col justify-center min-h-[300px] border border-neutral-200 shadow-sm transition-all duration-300`}>
+                          
+                          {/* Slide overlay badge */}
+                          <div className="z-10 bg-white/20 text-white backdrop-blur-md px-2.5 py-0.5 rounded-full text-[9px] font-black tracking-widest uppercase mb-3 select-none">
+                            {productAdBadge || 'PROMOTION'}
+                          </div>
+                          
+                          <div className="z-10 max-y-36">
+                            <h3 className="text-base sm:text-lg font-sans font-extrabold tracking-tight leading-snug mb-2 drop-shadow-xs text-left">
+                              {productAdTitle || newProdName || 'Your Campaign Headline Title'}
+                            </h3>
+                            <p className="text-xs text-white/95 line-clamp-3 mb-4 max-w-sm drop-shadow-2xs leading-relaxed font-sans text-left">
+                              {productAdSubtitle || 'Auto-computed or customized subhead will provide compelling product specifications for storefront viewers.'}
+                            </p>
+                          </div>
+
+                          {/* CTA Button */}
+                          <div className="z-10 w-full flex justify-between items-center font-sans">
+                            <button
+                              type="button"
+                              className="bg-white text-gray-900 font-bold px-4 py-2 rounded-md text-[11px] uppercase shadow-md pointer-events-none transition"
+                            >
+                              {productAdButtonText || 'VIEW DEALS'}
+                            </button>
+                            <span className="text-[8px] bg-black/40 text-white/80 px-2 py-1 rounded font-mono select-none">
+                              Category: {productAdCategory}
+                            </span>
+                          </div>
+
+                          {/* Graphic side aspect representation inside live preview card */}
+                          <div className="absolute right-0 bottom-0 top-0 w-[42%] opacity-15 md:opacity-25 pointer-events-none transition-opacity">
+                            <img
+                              src={productAdImageUrl || productImages[0] || newProdImageUrl || 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=600&q=80'}
+                              alt=""
+                              className="w-full h-full object-cover"
+                              referrerPolicy="no-referrer"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-black/10 to-black/30" />
+                          </div>
+
+                        </div>
+
+                        <div className="bg-[#fafafa] p-4 rounded text-[11px] text-gray-500 space-y-1.5 leading-relaxed font-sans border border-gray-150">
+                          <p className="font-bold text-gray-700">💡 Smart Sync Information</p>
+                          <p>
+                            Upon clicking <strong>Synchronize</strong>, the system simultaneously updates both the inventory listing details and links the Campaign Poster onto the store's landing page.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
+                ) : (
+                  <div className="bg-white border border-dashed border-gray-200 rounded-lg p-12 text-center space-y-3 font-sans shadow-2xs">
+                    <span className="text-4xl block">💤</span>
+                    <h5 className="text-xs font-black uppercase text-neutral-800">Promotions Campaign and Banners Inactive</h5>
+                    <p className="text-[11.5px] text-neutral-400 max-w-sm mx-auto leading-relaxed">This item is currently formatted only as a normal inventory search match. Flip the slide toggle on the left/above to design a premium storefront carousel poster for this goods!</p>
+                    <button
+                      type="button"
+                      onClick={() => setIsProductAdEnabled(true)}
+                      className="bg-[#7c3aed] text-white hover:bg-purple-700 text-xs font-bold py-2 px-5 rounded tracking-wide transition cursor-pointer"
+                    >
+                      Configure Campaign Poster Banner
+                    </button>
+                  </div>
+                )}
+
+              </div>
+            )}
 
             {/* General Submission Information Notification and Feedback messages */}
             <div className="lg:col-span-12 border-t border-gray-200 pt-4">
