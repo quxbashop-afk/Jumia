@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Header from './components/Header';
 import HeroCarousel from './components/HeroCarousel';
 import FlashSales from './components/FlashSales';
@@ -81,6 +81,27 @@ export default function App() {
     localStorage.setItem('jumia_registered_users', JSON.stringify(initial));
     return initial;
   });
+
+  // Real-time Toast Notifications state for flash sale & price drop alerts
+  const [toasts, setToasts] = useState<{ id: string; title: string; message: string; type: 'price-drop' | 'flash-sale' | 'info'; productImageUrl?: string }[]>([]);
+  
+  // Ref to hold previous products list for change detection
+  const prevProductsRef = useRef<Product[]>([]);
+
+  // Ref to hold latest wishlist values to prevent stale closures inside onSnapshot
+  const wishlistRef = useRef<Product[]>(wishlist);
+  
+  useEffect(() => {
+    wishlistRef.current = wishlist;
+  }, [wishlist]);
+
+  const addToast = (title: string, message: string, type: 'price-drop' | 'flash-sale' | 'info', productImageUrl?: string) => {
+    const id = Math.random().toString(36).substring(2, 9);
+    setToasts(prev => [...prev, { id, title, message, type, productImageUrl }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 6000);
+  };
 
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
@@ -173,7 +194,42 @@ export default function App() {
         snapshot.forEach((snap) => {
           prodList.push(snap.data() as Product);
         });
+
+        // Handle Change Detection relative to stored references
+        const prevProducts = prevProductsRef.current;
+        if (prevProducts && prevProducts.length > 0) {
+          wishlistRef.current.forEach((wishItem) => {
+            const oldProd = prevProducts.find(p => p.id === wishItem.id);
+            const newProd = prodList.find(p => p.id === wishItem.id);
+            if (oldProd && newProd) {
+              // 1. Detect Product Price Drop
+              if (newProd.price < oldProd.price) {
+                addToast(
+                  'Price Drop Alert! 📉',
+                  `The price of ${newProd.name} on your wishlist dropped from ₦${oldProd.price.toLocaleString()} to ₦${newProd.price.toLocaleString()}!`,
+                  'price-drop',
+                  newProd.imageUrl
+                );
+                // Sync wishlist
+                setWishlist(prev => prev.map(item => item.id === newProd.id ? newProd : item));
+              }
+              // 2. Detect Flash Sale event
+              else if (newProd.isFlashSale && !oldProd.isFlashSale) {
+                addToast(
+                  'Flash Sale Alert! ⚡',
+                  `${newProd.name} on your wishlist is now on a limited Flash Sale! Hurry and secure yours before it runs out!`,
+                  'flash-sale',
+                  newProd.imageUrl
+                );
+                // Sync wishlist
+                setWishlist(prev => prev.map(item => item.id === newProd.id ? newProd : item));
+              }
+            }
+          });
+        }
+
         setProducts(prodList);
+        prevProductsRef.current = prodList;
       }
     }, (error) => {
       console.warn("Products subscription warning (offline / guest permission check):", error);
@@ -594,9 +650,11 @@ export default function App() {
      ========================================================================== */
   const handleAddNewProductFromSeller = async (newProduct: Product) => {
     try {
+      // Force auto-approval for admin (quxbashop@gmail.com) added products so they show instantly
+      const isAdminUser = currentUser?.email === 'quxbashop@gmail.com';
       await setDoc(doc(db, 'products', newProduct.id), {
         ...newProduct,
-        isApproved: newProduct.isApproved !== undefined ? newProduct.isApproved : false, // respect seller option
+        isApproved: isAdminUser ? true : (newProduct.isApproved !== undefined ? newProduct.isApproved : false),
         createdAt: Date.now()
       });
     } catch (error) {
@@ -1938,10 +1996,54 @@ export default function App() {
                 <span>Continue with Google</span>
               </button>
 
+              <div className="mt-4 bg-[#f5f3ff] border border-purple-100 rounded-lg p-3 text-[10.5px] text-purple-800 leading-normal font-medium">
+                <p className="font-bold text-purple-950 mb-1">💡 Google Login Tips:</p>
+                <ul className="list-disc list-inside space-y-1 text-purple-900/90 text-left">
+                  <li>Please make sure to click <strong className="text-purple-950">"Open in New Tab"</strong> at the top right of the preview so Google's login popup can open safely outside the sandboxed iframe.</li>
+                  <li>Ensure your application's domain is added to <strong className="text-purple-950">Authorized Domains</strong> in your Firebase Console under <em className="not-italic">Authentication ➔ Settings</em>.</li>
+                </ul>
+              </div>
+
             </div>
           </div>
         </div>
       )}
+
+      {/* Real-time Wishlist Alerts Toast Container */}
+      <div 
+        id="toast-notification-container" 
+        className="fixed bottom-5 right-5 z-100 flex flex-col gap-3.5 max-w-sm w-full pointer-events-none px-4 sm:px-0"
+      >
+        {toasts.map(toast => (
+          <div
+            key={toast.id}
+            id={`toast-item-${toast.id}`}
+            className="pointer-events-auto bg-white border border-purple-100 rounded-lg shadow-xl p-3 flex gap-3 animate-slide-in-right relative overflow-hidden"
+            style={{ borderLeftWidth: '5px', borderLeftColor: toast.type === 'price-drop' ? '#ef4444' : '#7c3aed' }}
+          >
+            {toast.productImageUrl && (
+              <div className="w-10 h-10 flex-shrink-0 bg-neutral-50 border border-gray-100 rounded flex items-center justify-center p-0.5 overflow-hidden">
+                <img
+                  src={toast.productImageUrl}
+                  alt=""
+                  className="max-h-full max-w-full object-contain"
+                  onError={(e) => { e.currentTarget.src = 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=600&q=80'; }}
+                />
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <h4 className="text-xs font-extrabold text-neutral-900 leading-tight pr-4">{toast.title}</h4>
+              <p className="text-[10px] text-neutral-500 mt-1 leading-snug">{toast.message}</p>
+            </div>
+            <button
+              onClick={() => setToasts(prev => prev.filter(t => t.id !== toast.id))}
+              className="absolute top-2 right-2 text-neutral-300 hover:text-neutral-500 cursor-pointer"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        ))}
+      </div>
 
 
 

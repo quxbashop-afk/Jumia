@@ -74,6 +74,9 @@ export default function ProductCard({
           className="max-h-[92%] max-w-[92%] object-contain group-hover:scale-102 transition-transform duration-300"
           loading="lazy"
           referrerPolicy="no-referrer"
+          onError={(e) => {
+            e.currentTarget.src = 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=600&q=80';
+          }}
         />
         <div className="absolute inset-0 bg-black/[0.01] group-hover:bg-black/[0.03] transition-colors" />
 

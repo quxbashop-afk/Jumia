@@ -46,7 +46,7 @@ service cloud.firestore {
              data.price is number && data.price >= 0 &&
              data.originalPrice is number && data.originalPrice >= 0 &&
              data.discount is number && data.discount >= 0 && data.discount <= 100 &&
-             data.imageUrl is string && data.imageUrl.size() <= 2048 &&
+             data.imageUrl is string && data.imageUrl.size() <= 5000000 &&
              data.rating is number && data.rating >= 0 && data.rating <= 5 &&
              data.reviewsCount is number && data.reviewsCount >= 0 &&
              data.description is string && data.description.size() <= 10000 &&

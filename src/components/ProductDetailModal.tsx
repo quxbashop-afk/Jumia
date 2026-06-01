@@ -150,6 +150,9 @@ export default function ProductDetailModal({
               }}
               className="max-h-full max-w-full object-contain transition-transform duration-100 ease-out"
               referrerPolicy="no-referrer"
+              onError={(e) => {
+                e.currentTarget.src = 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=600&q=80';
+              }}
             />
           </div>
 
@@ -176,6 +179,9 @@ export default function ProductDetailModal({
                         alt={`Pic ${idx + 1}`} 
                         className="w-full h-full object-contain" 
                         referrerPolicy="no-referrer"
+                        onError={(e) => {
+                          e.currentTarget.src = 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=600&q=80';
+                        }}
                       />
                     </button>
                   );

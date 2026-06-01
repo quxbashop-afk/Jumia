@@ -142,6 +142,9 @@ export default function FlashSales({
                     className="max-h-[95%] max-w-[95%] object-contain group-hover:scale-105 transition-transform duration-350"
                     loading="lazy"
                     referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      e.currentTarget.src = 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=600&q=80';
+                    }}
                   />
                 </div>
 

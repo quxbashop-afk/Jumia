@@ -88,6 +88,9 @@ export default function QuickViewModal({
                 alt={product.name}
                 className="max-h-full max-w-full object-contain transition-transform duration-300 group-hover:scale-102"
                 referrerPolicy="no-referrer"
+                onError={(e) => {
+                  e.currentTarget.src = 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=600&q=80';
+                }}
               />
               {/* Floating Quick Badges */}
               <div className="absolute top-2 left-2 flex flex-col gap-1.5">

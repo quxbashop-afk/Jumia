@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Building2, Percent, TrendingUp, Users, ShoppingBag, Plus, Trash2, Check, X, ShieldAlert, BadgeAlert,
   Send, RefreshCw, BarChart3, CheckSquare, Coins, HelpCircle, PackageOpen, ArrowRight, UserCheck, Star,
@@ -22,6 +22,19 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct }: 
   const [newProdCategory, setNewProdCategory] = useState('Fashion & Apparel');
   const [newProdPrice, setNewProdPrice] = useState('');
   const [newProdOldPrice, setNewProdOldPrice] = useState('');
+  const [newProdDiscount, setNewProdDiscount] = useState('0');
+
+  // Real-time automatic discount helper updating 'Discount' automatically as user types a new Sale Price against Original Price
+  useEffect(() => {
+    const salePrice = parseFloat(newProdPrice);
+    const regularPrice = parseFloat(newProdOldPrice);
+    if (!isNaN(salePrice) && !isNaN(regularPrice) && regularPrice > salePrice) {
+      const pct = Math.round(((regularPrice - salePrice) / regularPrice) * 100);
+      setNewProdDiscount(String(pct));
+    } else {
+      setNewProdDiscount('0');
+    }
+  }, [newProdPrice, newProdOldPrice]);
   const [newProdImageUrl, setNewProdImageUrl] = useState('');
   const [newProdDesc, setNewProdDesc] = useState('');
   const [formError, setFormError] = useState('');
@@ -323,7 +336,7 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct }: 
       category: newProdCategory,
       price: priceNum,
       originalPrice: originalPriceNum,
-      discount: Math.round(((originalPriceNum - priceNum) / originalPriceNum) * 100),
+      discount: parseInt(newProdDiscount) || 0,
       imageUrl: primaryImg,
       imageUrls: finalImagesList,
       fromDevice: fromDeviceList,
@@ -1209,12 +1222,30 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct }: 
                     <p className="text-[8px] text-gray-400 mt-0.5">Real value billed to purchasing customers.</p>
                   </div>
 
-                  {/* Dynamic discount calculator */}
-                  {newProdPrice && newProdOldPrice && parseFloat(newProdOldPrice) > parseFloat(newProdPrice) && (
-                    <div className="bg-emerald-50 border border-emerald-100 rounded p-2.5 text-center text-emerald-800 text-[10.5px] font-bold animate-fade-in">
-                      Promotional Discount Calculated: -{Math.round(((parseFloat(newProdOldPrice) - parseFloat(newProdPrice)) / parseFloat(newProdOldPrice)) * 100)}% on checkout!
+                  {/* Calculated/Interactive Discount Field */}
+                  <div>
+                    <label className="block text-[9.5px] font-black text-gray-500 uppercase mb-1">Calculated Discount (%)</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2 text-xs font-bold text-violet-600">%</span>
+                      <input
+                        type="number"
+                        placeholder="0"
+                        value={newProdDiscount}
+                        onChange={(e) => {
+                          const valStr = e.target.value;
+                          setNewProdDiscount(valStr);
+                          const pct = parseFloat(valStr);
+                          const regularPrice = parseFloat(newProdOldPrice);
+                          if (!isNaN(pct) && !isNaN(regularPrice) && pct >= 0 && pct <= 100) {
+                            const newSalePrice = Math.round(regularPrice * (1 - pct / 100));
+                            setNewProdPrice(String(newSalePrice));
+                          }
+                        }}
+                        className="w-full bg-[#fcfcfc] border border-gray-200 rounded pl-7 pr-3 py-2 text-xs focus:ring-1 focus:ring-black focus:outline-none text-neutral-900 font-bold transition"
+                      />
                     </div>
-                  )}
+                    <p className="text-[8px] text-gray-400 mt-0.5">Updates in real-time as you type, or enter a discount percentage to auto-compute your Selling Price.</p>
+                  </div>
 
                   {/* On Sale switch representation */}
                   <div className="flex items-center justify-between pt-1">
