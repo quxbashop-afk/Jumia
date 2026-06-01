@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, Gift, Percent, Calendar, Sparkles } from 'lu
 import { db, OperationType, handleFirestoreError } from '../firebase';
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { Advertisement } from '../types';
+import clearanceMegaSaleImage from '../assets/images/clearance_mega_sale_1780330738754.png';
 
 interface HeroCarouselProps {
   onSelectCategory: (category: string) => void;
@@ -61,31 +62,9 @@ export default function HeroCarousel({ onSelectCategory }: HeroCarouselProps) {
       subtitle: 'Up to 60% OFF Top Electronics, Home Appliances, Tech & Fashion',
       buttonText: 'SHOP THE SALE',
       badge: 'ANNIVERSARY CELEBRATION',
-      image: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?auto=format&fit=crop&w=1200&q=80',
-      videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-girl-in-sunglasses-and-a-blue-headscarf-40186-large.mp4',
+      image: clearanceMegaSaleImage,
       bgColor: 'from-purple-700 via-violet-500 to-fuchsia-400',
       action: () => onSelectCategory('Electronics & Appliances')
-    },
-    {
-      id: 'electronics-clearance',
-      title: 'Premium Home Electronics & Cooling Solutions ❄️',
-      subtitle: 'Premium Smart Refrigerators & Turbo-charge Air Conditioners with full warranty',
-      buttonText: 'BROWSE COOLING DEALS',
-      badge: 'EXPRESS COLDTECH',
-      image: 'https://images.unsplash.com/photo-1571875257727-256c3a8428e8?auto=format&fit=crop&w=600&q=80',
-      bgColor: 'from-blue-700 via-indigo-600 to-purple-600',
-      action: () => onSelectCategory('Electronics & Appliances')
-    },
-    {
-      id: 'supermarket-stock',
-      title: 'Weekly Supermarket & Groceries Restock 🥦',
-      subtitle: 'Cooking Oils, Cereal packs, Grains, Cosmetics & Household essentials',
-      buttonText: 'RESTOCK NOW',
-      badge: 'BEST PRICE GUARANTEE',
-      image: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=1200&q=80',
-      videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-pour-honey-into-a-fresh-fruit-salad-40088-large.mp4',
-      bgColor: 'from-emerald-700 via-teal-600 to-cyan-600',
-      action: () => onSelectCategory('Supermarket & Groceries')
     }
   ];
 
@@ -125,44 +104,17 @@ export default function HeroCarousel({ onSelectCategory }: HeroCarouselProps) {
 
   return (
     <div className="relative overflow-hidden bg-white rounded-xl shadow-md border border-gray-100" id="anniversary-hero">
-      <div className="relative h-[280px] sm:h-[350px] md:h-[450px] w-full transition-all duration-700 ease-in-out">
+      <div className="relative h-[220px] sm:h-[300px] md:h-[400px] w-full transition-all duration-700 ease-in-out">
         {slides.map((slide, idx) => (
           <div
             key={slide.id}
-            className={`absolute inset-0 w-full h-full flex flex-col md:flex-row items-stretch transition-opacity duration-1000 ${
+            className={`absolute inset-0 w-full h-full flex items-stretch transition-opacity duration-1000 cursor-pointer ${
               idx === currentSlide ? 'opacity-100 z-10' : 'opacity-0 z-0'
             }`}
+            onClick={slide.action}
           >
-            {/* Slide Information */}
-            <div className={`w-full md:w-[45%] bg-gradient-to-br ${slide.bgColor} text-white p-8 md:p-12 flex flex-col justify-center items-start relative overflow-hidden`}>
-              {/* Background Shapes */}
-              <div className="absolute right-0 bottom-0 opacity-10 pointer-events-none transform translate-x-12 translate-y-12">
-                <Gift className="w-64 h-64" />
-              </div>
-              
-              <span className="bg-white/20 text-white backdrop-blur-md px-3 py-1 rounded-full text-xs font-bold tracking-wider uppercase mb-4 flex items-center gap-1.5 shadow-sm">
-                <Sparkles className="w-3.5 h-3.5" />
-                {slide.badge}
-              </span>
-              
-              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-display font-extrabold tracking-tight leading-tight mb-3">
-                {slide.title}
-              </h1>
-              
-              <p className="text-sm sm:text-base text-purple-50/90 mb-6 max-w-sm line-clamp-2 md:line-clamp-none">
-                {slide.subtitle}
-              </p>
-              
-              <button
-                onClick={slide.action}
-                className="bg-white hover:bg-purple-50 text-gray-900 font-bold px-6 py-3 rounded-md text-sm shadow-md transition-all active:scale-95 duration-150 inline-flex items-center gap-2"
-              >
-                <span>{slide.buttonText}</span>
-              </button>
-            </div>
-
-            {/* Slide Banner Graphics or Woman walking through port image */}
-            <div className="w-full md:w-[55%] relative select-none overflow-hidden bg-purple-50 min-h-[140px] md:min-h-0">
+            {/* Slide Banner Graphics - Expanded to full width */}
+            <div className="w-full h-full relative select-none overflow-hidden bg-purple-50">
               {slide.videoUrl ? (
                 <video
                   src={slide.videoUrl}
@@ -180,38 +132,43 @@ export default function HeroCarousel({ onSelectCategory }: HeroCarouselProps) {
                   referrerPolicy="no-referrer"
                 />
               )}
-              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/40 via-transparent to-transparent h-20 md:hidden" />
             </div>
           </div>
         ))}
       </div>
 
       {/* Manual Slide Selectors */}
-      <button
-        onClick={() => setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length)}
-        className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/85 hover:bg-white text-gray-800 p-2 rounded-full shadow-lg z-20 hover:scale-105 active:scale-95 transition"
-        aria-label="Previous Slide"
-      >
-        <ChevronLeft className="w-5 h-5" />
-      </button>
-      <button
-        onClick={() => setCurrentSlide((prev) => (prev + 1) % slides.length)}
-        className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/85 hover:bg-white text-gray-800 p-2 rounded-full shadow-lg z-20 hover:scale-105 active:scale-95 transition"
-        aria-label="Next Slide"
-      >
-        <ChevronRight className="w-5 h-5" />
-      </button>
+      {slides.length > 1 && (
+        <>
+          <button
+            onClick={() => setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length)}
+            className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/85 hover:bg-white text-gray-800 p-2 rounded-full shadow-lg z-20 hover:scale-105 active:scale-95 transition"
+            aria-label="Previous Slide"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+          <button
+            onClick={() => setCurrentSlide((prev) => (prev + 1) % slides.length)}
+            className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/85 hover:bg-white text-gray-800 p-2 rounded-full shadow-lg z-20 hover:scale-105 active:scale-95 transition"
+            aria-label="Next Slide"
+          >
+            <ChevronRight className="w-5 h-5" />
+          </button>
+        </>
+      )}
 
       {/* Circle slide count markers */}
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 z-20">
-        {slides.map((_, idx) => (
-          <button
-            key={idx}
-            onClick={() => setCurrentSlide(idx)}
-            className={`w-2.5 h-2.5 rounded-full transition-all ${idx === currentSlide ? 'bg-[#7c3aed] w-6' : 'bg-gray-300'}`}
-          />
-        ))}
-      </div>
+      {slides.length > 1 && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 z-20">
+          {slides.map((_, idx) => (
+            <button
+              key={idx}
+              onClick={() => setCurrentSlide(idx)}
+              className={`w-2.5 h-2.5 rounded-full transition-all ${idx === currentSlide ? 'bg-[#7c3aed] w-6' : 'bg-gray-300'}`}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

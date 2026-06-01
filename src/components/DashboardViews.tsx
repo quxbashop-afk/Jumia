@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Building2, Percent, TrendingUp, Users, ShoppingBag, Plus, Trash2, Check, X, ShieldAlert, BadgeAlert,
   Send, RefreshCw, BarChart3, CheckSquare, Coins, HelpCircle, PackageOpen, ArrowRight, UserCheck, Star,
-  ChevronRight, Loader2
+  ChevronRight, Loader2, Sparkles, Wand2
 } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 import { Product, Order, SupportMessage, CartItem, ProductOption, ProductVariant, Advertisement } from '../types';
@@ -81,6 +81,11 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct }: 
   const [sortBy, setSortBy] = useState<'name' | 'price' | 'none'>('none');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // --- Gemini AI Product Generator state variables ---
+  const [isAnalyzingProduct, setIsAnalyzingProduct] = useState(false);
+  const [aiAnalysisError, setAiAnalysisError] = useState('');
+  const [aiSuccessMessage, setAiSuccessMessage] = useState('');
 
   // --- Squarespace Commerce UI States ---
   const [isEditorOpen, setIsEditorOpen] = useState(false);
@@ -373,6 +378,49 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct }: 
     setFormError('');
     setFormSuccess('');
     setIsEditorOpen(true);
+  };
+
+  const handleAiGenerateProduct = async () => {
+    // Find the first available image starting with the active slot
+    let imageToAnalyze = productImages[activeImageSlot] || productImages.find(img => !!img);
+    if (!imageToAnalyze) {
+      setAiAnalysisError('No product image found! Please upload an image under Method B below, or enter an image address in Method A to run the AI Generator.');
+      return;
+    }
+
+    setIsAnalyzingProduct(true);
+    setAiAnalysisError('');
+    setAiSuccessMessage('');
+
+    try {
+      const response = await fetch("/api/gemini/analyze-product", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ imageUrl: imageToAnalyze }),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || `Server returned status ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      if (data.name) setNewProdName(data.name);
+      if (data.category) setNewProdCategory(data.category);
+      if (data.price) setNewProdPrice(String(data.price));
+      if (data.originalPrice) setNewProdOldPrice(String(data.originalPrice));
+      if (data.description) setNewProdDesc(data.description);
+
+      setAiSuccessMessage('🪄 Gemini AI analyzed your product image successfully! Title, competitive price fields, department, and description have been generated.');
+    } catch (err: any) {
+      console.error("Error generating product details via Gemini:", err);
+      setAiAnalysisError(err.message || 'An unexpected error occurred while analyzing the product with Gemini.');
+    } finally {
+      setIsAnalyzingProduct(false);
+    }
   };
 
   const handleCreateProduct = async (e: React.FormEvent) => {
@@ -1256,6 +1304,91 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct }: 
                     className="w-full bg-white text-xs text-neutral-800 leading-relaxed border border-gray-200 p-3 focus:outline-none focus:border-neutral-950 rounded-b transition"
                   />
                 </div>
+              </div>
+
+              {/* Card 1.5: Quxba Smart AI Assistant */}
+              <div className="bg-gradient-to-br from-indigo-50/60 via-purple-50/40 to-pink-50/30 border border-purple-200/80 rounded p-6 shadow-sm space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="bg-purple-100 text-[#7c3aed] p-1.5 rounded-lg animate-pulse">
+                      <Sparkles className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-black uppercase tracking-widest text-neutral-800">Quxba Smart AI Assistant</h4>
+                      <p className="text-[10px] text-gray-400 font-medium tracking-tight">Automatic product catalog sheets powered by Google Gemini 3.5</p>
+                    </div>
+                  </div>
+                  <span className="bg-purple-150 text-[#7c3aed] text-[8.5px] px-2 py-0.5 rounded font-black tracking-wider uppercase font-sans">Active Optimizer</span>
+                </div>
+
+                <div className="text-[11px] text-slate-500 leading-relaxed">
+                  Upload or link a product photograph in the slots below, select your active slot, then click below to automatically write a highly-persuasive premium marketing description, select the correct department, and calculate standard retail market pricing.
+                </div>
+
+                {/* Selected Image Status Preview block */}
+                {(() => {
+                  const currentImg = productImages[activeImageSlot] || productImages.find(img => !!img);
+                  return (
+                    <div className="flex items-center gap-4 bg-white/90 backdrop-blur-xs p-3 rounded-lg border border-purple-100/50">
+                      <div className="w-12 h-12 bg-neutral-100 border border-gray-150 rounded overflow-hidden flex items-center justify-center relative flex-shrink-0">
+                        {currentImg ? (
+                          <img src={currentImg} alt="Preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                        ) : (
+                          <span className="text-gray-300 text-lg">📷</span>
+                        )}
+                        {currentImg && (
+                          <div className="absolute top-0.5 right-0.5 bg-[#7c3aed]/90 text-[7px] text-white px-1 py-0.2 rounded font-black uppercase font-sans leading-none">
+                            SLOT #{activeImageSlot + 1}
+                          </div>
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <span className="text-[9.5px] font-black uppercase text-[#7c3aed] tracking-wider block">Target Image Source</span>
+                        <p className="text-[11px] font-semibold text-gray-700 truncate">
+                          {currentImg 
+                            ? `Selected Photo (For AI Analysis)` 
+                            : "No photo uploaded yet in active slot! Select/upload one below first."
+                          }
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* AI Error & Success Status lines */}
+                {aiAnalysisError && (
+                  <div className="bg-red-50 text-red-600 text-[11px] font-semibold px-3 py-2 rounded-lg border border-red-100 flex items-center gap-2">
+                    <span>⚠️</span>
+                    <span>{aiAnalysisError}</span>
+                  </div>
+                )}
+
+                {aiSuccessMessage && (
+                  <div className="bg-emerald-50 text-emerald-800 text-[11px] font-semibold px-3 py-2 rounded-lg border border-emerald-100 flex items-start gap-1.5">
+                    <span className="mt-0.5">✅</span>
+                    <span>{aiSuccessMessage}</span>
+                  </div>
+                )}
+
+                {/* Action CTA Button */}
+                <button
+                  type="button"
+                  disabled={isAnalyzingProduct}
+                  onClick={handleAiGenerateProduct}
+                  className="w-full bg-[#7c3aed] hover:bg-purple-700 disabled:bg-purple-300 text-white font-bold text-xs py-2.5 px-4 rounded-lg shadow-sm active:scale-[0.99] transition flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  {isAnalyzingProduct ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span className="tracking-wide uppercase font-black text-[10px]">Gemini is Analyzing the Image & Generating Premium Sheets...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Wand2 className="w-3.5 h-3.5 animate-pulse" />
+                      <span className="tracking-wide uppercase font-black text-[10px]">Auto-Generate Name, Price & Description with Gemini</span>
+                    </>
+                  )}
+                </button>
               </div>
 
               {/* Card 2: Interactive Dynamic Multi-Photo Gallery (5 slots) */}
