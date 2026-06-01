@@ -124,6 +124,104 @@ app.post("/api/gemini/analyze-product", async (req, res) => {
   }
 });
 
+// Secure API endpoint for validated e-commerce checkout checkouts
+app.post("/api/orders/validate-checkout", (req, res) => {
+  try {
+    const {
+      fullName,
+      email,
+      phone,
+      address,
+      city,
+      state,
+      country,
+      shippingMethod,
+      paymentMethod,
+      grandTotal,
+      cartItemsCount
+    } = req.body;
+
+    // 1. Check required values present
+    if (!fullName || !email || !phone || !address || !city) {
+      return res.status(400).json({ 
+        isValid: false, 
+        error: "All required customer fields (Name, Email, Phone, Address, City) must be supplied." 
+      });
+    }
+
+    // 2. Validate full name format
+    if (fullName.trim().split(/\s+/).length < 2) {
+      return res.status(400).json({ 
+        isValid: false, 
+        error: "Pleasure enter both your first and last name for proper shipping records." 
+      });
+    }
+
+    // 3. Validate email formula
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ 
+        isValid: false, 
+        error: "The provided email address has an invalid format." 
+      });
+    }
+
+    // 4. Validate Nigerian phone number structure
+    const cleanedPhone = phone.replace(/\s+/g, "");
+    const phoneRegex = /^(?:\+234|0)[789][01]\d{8}$/;
+    if (!phoneRegex.test(cleanedPhone)) {
+      return res.status(400).json({ 
+        isValid: false, 
+        error: "Please provide a valid Nigerian phone number starting with 0 or +234." 
+      });
+    }
+
+    // 5. Regional Lagos & Nigeria Only Constraint Enforcement
+    if (state.trim().toLowerCase() !== "lagos") {
+      return res.status(400).json({ 
+        isValid: false, 
+        error: "Quxba logistics are currently restricted to Lagos location. Change your State to Lagos!" 
+      });
+    }
+
+    if (country.trim().toLowerCase() !== "nigeria") {
+      return res.status(400).json({ 
+        isValid: false, 
+        error: "We only support physical operations and courier delivery within Nigeria." 
+      });
+    }
+
+    // 6. Basic cart item presence sanity
+    if (!cartItemsCount || cartItemsCount <= 0) {
+      return res.status(400).json({ 
+        isValid: false, 
+        error: "Your checkout cart cannot be empty." 
+      });
+    }
+
+    if (grandTotal === undefined || grandTotal < 0) {
+      return res.status(400).json({ 
+        isValid: false, 
+        error: "Invalid total price calculated." 
+      });
+    }
+
+    // Successful transaction verification response signature
+    return res.json({ 
+      isValid: true, 
+      verifiedAt: new Date().toISOString(),
+      merchantName: "Quxba Lagos"
+    });
+
+  } catch (error: any) {
+    console.error("Server-side checkout validation error:", error);
+    return res.status(500).json({ 
+      isValid: false, 
+      error: "Merchant validator encountered an internal error during checkout checks." 
+    });
+  }
+});
+
 async function startServer() {
   // Vite middleware for development, static serve for production
   if (process.env.NODE_ENV !== "production") {

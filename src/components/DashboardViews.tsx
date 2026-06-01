@@ -2520,12 +2520,36 @@ export function AdminDashboard({
                   <tr key={o.id} className="hover:bg-gray-50/50">
                     <td className="p-3 font-mono font-bold text-gray-800">{o.id}</td>
                     <td className="p-3">
-                      <p className="font-bold text-gray-700 truncate max-w-[150px]">{o.customerEmail}</p>
-                      <p className="text-[10px] text-gray-400 truncate max-w-[150px]">{o.deliveryAddress}</p>
+                      <p className="font-extrabold text-gray-800 text-[12px] truncate max-w-[180px]">
+                        {o.customerName || 'Guest Buyer'}
+                      </p>
+                      <p className="text-[10px] text-purple-600 font-mono truncate max-w-[180px]">
+                        {o.customerEmail}
+                      </p>
+                      {o.customerPhone && (
+                        <p className="text-[9px] font-bold text-gray-500 font-mono leading-none">
+                          {o.customerPhone}
+                        </p>
+                      )}
+                      <p className="text-[10px] text-gray-400 truncate max-w-[180px] mt-0.5" title={o.deliveryAddress}>
+                        {o.deliveryAddress}
+                      </p>
+                      {o.orderNotes && (
+                        <p className="text-[9px] text-amber-700 bg-amber-50 rounded px-1.5 py-0.5 mt-1 font-medium truncate max-w-[180px]">
+                          📢 Note: "{o.orderNotes}"
+                        </p>
+                      )}
                     </td>
                     <td className="p-3">
-                      <p className="font-extrabold text-purple-700">₦{o.totalPrice.toLocaleString()}</p>
-                      <p className="text-[10px] text-gray-400">{o.paymentMethod}</p>
+                      <p className="font-extrabold text-[#7c3aed]">₦{o.totalPrice.toLocaleString()}</p>
+                      <p className="text-[10px] text-gray-400 font-medium">
+                        {o.paymentMethod}
+                        {o.discountCode && (
+                          <span className="text-emerald-600 font-bold block text-[8px] tracking-wide uppercase">
+                            🎟️ {o.discountCode} (-₦{(o.discountAmount || 0).toLocaleString()})
+                          </span>
+                        )}
+                      </p>
                     </td>
                     <td className="p-3">
                       <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${

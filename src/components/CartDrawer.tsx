@@ -10,7 +10,7 @@ interface CartDrawerProps {
   onRemove: (pId: string, selectedOptions?: Record<string, string>) => void;
   onClearCart: () => void;
   onPlaceOrder: (order: Order) => void;
-  onToggleView: (view: 'storefront' | 'orders') => void;
+  onToggleView: (view: 'storefront' | 'orders' | 'checkout') => void;
   currentUser: UserAccount | null;
   onOpenAuthModal: () => void;
 }
@@ -303,11 +303,8 @@ export default function CartDrawer({
 
                   <button 
                     onClick={() => {
-                      if (!currentUser) {
-                        onOpenAuthModal();
-                      } else {
-                        setCheckoutStep('shipping');
-                      }
+                      onToggleView('checkout');
+                      onClose();
                     }}
                     className="w-full bg-[#7c3aed] hover:bg-[#6d28d9] text-white py-3 rounded-md font-bold text-sm shadow flex items-center justify-center gap-2 transition hover:shadow-lg active:scale-98"
                   >

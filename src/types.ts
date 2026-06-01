@@ -69,6 +69,21 @@ export interface Order {
   expectedDelivery: string;
   customerEmail?: string;
   statusTimestamps?: Record<string, string>;
+  // Expanded Checkout fields
+  customerName?: string;
+  customerPhone?: string;
+  city?: string;
+  state?: string;
+  postalCode?: string;
+  country?: string;
+  orderNotes?: string;
+  shippingMethod?: string;
+  shippingFee?: number;
+  discountCode?: string;
+  discountAmount?: number;
+  taxAmount?: number;
+  subtotal?: number;
+  grandTotal?: number;
 }
 
 export interface UserAccount {

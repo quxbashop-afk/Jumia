@@ -12,6 +12,7 @@ import CartDrawer from './components/CartDrawer';
 import WishlistDrawer from './components/WishlistDrawer';
 import ProductDetailModal from './components/ProductDetailModal';
 import QuickViewModal from './components/QuickViewModal';
+import CheckoutView from './components/CheckoutView';
 import { 
   SellerDashboard, 
   AdminDashboard, 
@@ -423,7 +424,7 @@ export default function App() {
   const [selectedCategory, setSelectedCategory] = useState('All Categories');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('relevance');
-  const [currentView, setCurrentView] = useState<'storefront' | 'seller' | 'admin' | 'orders' | 'support'>('storefront');
+  const [currentView, setCurrentView] = useState<'storefront' | 'seller' | 'admin' | 'orders' | 'support' | 'checkout'>('storefront');
 
   // Advanced Filter States
   const [minPrice, setMinPrice] = useState<number | ''>('');
@@ -1370,6 +1371,32 @@ export default function App() {
           )
         )}
 
+        {currentView === 'checkout' && (
+          <CheckoutView
+            cart={cart}
+            currentUser={currentUser}
+            onPlaceOrder={handlePlaceOrder}
+            onClearCart={handleClearCart}
+            onToggleView={(view) => {
+              if (view === 'seller' || view === 'admin' || view === 'support') {
+                if (!currentUser || currentUser.email !== 'quxbashop@gmail.com') {
+                  setAuthMode('signin');
+                  setAuthError('Access Denied. Only quxbashop@gmail.com can access admin zones.');
+                  setShowAuthModal(true);
+                  return;
+                }
+              }
+              if (view === 'orders' && !currentUser) {
+                setAuthMode('signin');
+                setAuthError('Please sign in to view your orders.');
+                setShowAuthModal(true);
+                return;
+              }
+              setCurrentView(view);
+            }}
+          />
+        )}
+
       </main>
 
       {/* Footer Block */}
@@ -1442,6 +1469,7 @@ export default function App() {
         onToggleView={(view) => {
           if (view === 'orders') setCurrentView('orders');
           if (view === 'storefront') setCurrentView('storefront');
+          if (view === 'checkout') setCurrentView('checkout');
         }}
         currentUser={currentUser}
         onOpenAuthModal={() => { setAuthMode('signin'); setAuthError(''); setShowAuthModal(true); setIsCartOpen(false); }}
