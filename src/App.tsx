@@ -19,6 +19,7 @@ import {
   OrderTrackingView, 
   CustomerSupportChat 
 } from './components/DashboardViews';
+import { AdminStorefrontPortal } from './components/AdminStorefrontPortal';
 
 import { INITIAL_PRODUCTS } from './data/products';
 import quxbaLogo from './assets/images/quxba_logo_1780098066924.png';
@@ -1111,6 +1112,49 @@ export default function App() {
         {currentView === 'storefront' && (
           <div className="space-y-8 animate-fade-in">
             
+            {currentUser?.email === 'quxbashop@gmail.com' && (
+              <AdminStorefrontPortal 
+                categories={categories}
+                onSaveCategory={async (catData) => {
+                  try {
+                    await setDoc(doc(db, 'categories', catData.id), catData);
+                    setCategories(prev => {
+                      const idx = prev.findIndex(c => c.id === catData.id);
+                      if (idx > -1) {
+                        const updated = [...prev];
+                        updated[idx] = catData;
+                        return updated;
+                      }
+                      return [...prev, catData];
+                    });
+                    return true;
+                  } catch (err) {
+                    console.error(err);
+                    return false;
+                  }
+                }}
+                onDeleteCategory={async (catId) => {
+                  try {
+                    await deleteDoc(doc(db, 'categories', catId));
+                    setCategories(prev => prev.filter(c => c.id !== catId));
+                    return true;
+                  } catch (err) {
+                    console.error(err);
+                    return false;
+                  }
+                }}
+                onAddProduct={async (prodData) => {
+                  try {
+                    await handleAddNewProductFromSeller(prodData);
+                    return true;
+                  } catch (err) {
+                    console.error(err);
+                    return false;
+                  }
+                }}
+              />
+            )}
+            
             {/* Upper layouts: Category tree panel & Hero Slider */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
               
@@ -1197,13 +1241,42 @@ export default function App() {
 
             {/* Red Flash Sales Stage */}
             {selectedCategory === 'All Categories' && (
-              <FlashSales
-                products={publicProducts}
-                wishlist={wishlist}
-                onAddToCart={handleAddToCart}
-                onToggleWishlist={handleToggleWishlist}
-                onSelectProduct={(p) => setSelectedProduct(p)}
-              />
+              <>
+                <FlashSales
+                  products={publicProducts}
+                  wishlist={wishlist}
+                  onAddToCart={handleAddToCart}
+                  onToggleWishlist={handleToggleWishlist}
+                  onSelectProduct={(p) => setSelectedProduct(p)}
+                />
+                <FlashSales
+                  title="WEEKEND VIBEZ"
+                  type="weekend"
+                  products={publicProducts}
+                  wishlist={wishlist}
+                  onAddToCart={handleAddToCart}
+                  onToggleWishlist={handleToggleWishlist}
+                  onSelectProduct={(p) => setSelectedProduct(p)}
+                />
+                <FlashSales
+                  title="NEW ARRIVED"
+                  type="new"
+                  products={publicProducts}
+                  wishlist={wishlist}
+                  onAddToCart={handleAddToCart}
+                  onToggleWishlist={handleToggleWishlist}
+                  onSelectProduct={(p) => setSelectedProduct(p)}
+                />
+                <FlashSales
+                  title="BIG DISCOUNT"
+                  type="discount"
+                  products={publicProducts}
+                  wishlist={wishlist}
+                  onAddToCart={handleAddToCart}
+                  onToggleWishlist={handleToggleWishlist}
+                  onSelectProduct={(p) => setSelectedProduct(p)}
+                />
+              </>
             )}
 
             {/* Primary Marketplace Directory grid shelf */}
@@ -1388,7 +1461,7 @@ export default function App() {
                         {/* Logistics Info Ad */}
                         <div className="p-3 bg-gradient-to-br from-gray-50 to-purple-50/10 rounded-lg border border-gray-150/15 flex items-center justify-between text-[11px] text-gray-400 font-semibold">
                           <div className="space-y-0.5">
-                            <p className="font-extrabold text-[#7c3aed] uppercase text-[9px] tracking-wider font-sans">Express Delivery</p>
+                            <p className="font-extrabold text-[#7c3aed] uppercase text-[9px] tracking-wider font-sans">Jet Delivery</p>
                             <p className="leading-snug text-[10px] text-gray-400 font-medium">Genuine warranty on every single deal.</p>
                           </div>
                           <span className="text-xl">🛡️</span>

@@ -151,11 +151,11 @@ export default function ProductCard({
             <span className="text-[10px] text-gray-400 font-bold">({product.reviewsCount})</span>
           </div>
 
-          {/* Quxba Express delivery branding label */}
+          {/* Quxba Jet delivery branding label */}
           <div className="flex items-center gap-0.5 mt-1 font-sans text-[9px] select-none">
             <span className="text-slate-800 font-black tracking-tighter">QUXBA</span>
             <span className="text-[#7c3aed] font-extrabold italic flex items-center gap-0.5">
-              ⚡ EXPRESS
+              ⚡ JET
             </span>
           </div>
         </div>
@@ -215,7 +215,7 @@ export default function ProductCard({
                 <span>WhatsApp</span>
               </a>
               <a
-                href={`https://twitter.com/intent/tweet?text=${encodeURIComponent('Check out ' + product.name + ' on QuxbaExpress Anniversary Sale! ' + window.location.origin + '#product-' + product.id)}`}
+                href={`https://twitter.com/intent/tweet?text=${encodeURIComponent('Check out ' + product.name + ' on QuxbaJet Anniversary Sale! ' + window.location.origin + '#product-' + product.id)}`}
                 target="_blank"
                 rel="noreferrer"
                 onClick={(e) => e.stopPropagation()}

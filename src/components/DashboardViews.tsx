@@ -130,6 +130,7 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct, ca
 
   // Add-ons, featured, related states
   const [isFeatured, setIsFeatured] = useState(false);
+  const [isFlashSale, setIsFlashSale] = useState(false);
   const [isApprovedDirectly, setIsApprovedDirectly] = useState(true); // Auto-publish directly to Home Page
   const [selectedAddons, setSelectedAddons] = useState<string[]>([]);
   const [showAddonModal, setShowAddonModal] = useState(false);
@@ -325,6 +326,7 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct, ca
     setNewProdDesc('');
     setNewProdImageUrl('');
     setIsFeatured(false);
+    setIsFlashSale(false);
     setIsApprovedDirectly(true);
     setSelectedAddons([]);
     setSelectedRelated([]);
@@ -371,6 +373,7 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct, ca
     setNewProdDesc(p.description || '');
     setNewProdImageUrl(p.imageUrl || '');
     setIsFeatured(p.specifications?.['Featured'] === 'Yes');
+    setIsFlashSale(p.isFlashSale || false);
     setIsApprovedDirectly(p.isApproved !== undefined ? p.isApproved : true);
     
     // Parse logistics
@@ -535,6 +538,7 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct, ca
       sellerId: 'vendor-self',
       sellerName: vendorName,
       isApproved: isApprovedDirectly, 
+      isFlashSale: isFlashSale,
       brand: newProdName.trim().split(/\s+/)[0] || 'Generic',
       createdAt: Date.now(),
       specifications: { 
@@ -2224,6 +2228,27 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct, ca
                     </button>
                   </div>
 
+                  <hr className="border-gray-100" />
+
+                  {/* Switch toggle flash sale product */}
+                  <div className="flex items-center justify-between pt-1">
+                    <div className="space-y-0.5">
+                      <span className="text-xs font-semibold text-neutral-700">Add to Flash Sales 🔥</span>
+                      <p className="text-[10px] text-gray-400">Include this product in the hot live Flash Sales carousel.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsFlashSale(!isFlashSale)}
+                      className={`w-10 h-5.5 flex items-center rounded-full p-0.5 cursor-pointer transition-colors duration-200 ${
+                        isFlashSale ? 'bg-red-600' : 'bg-gray-300'
+                      }`}
+                    >
+                      <div className={`bg-white w-4.5 h-4.5 rounded-full shadow-xs transform duration-200 ${
+                        isFlashSale ? 'translate-x-4.5' : 'translate-x-0'
+                      }`} />
+                    </button>
+                  </div>
+
                 </div>
               </div>
 
@@ -3233,7 +3258,7 @@ export function OrderTrackingView({ orders, onCancelOrder, onReorder, onToggleVi
    ========================================================================== */
 export function CustomerSupportChat() {
   const [messages, setMessages] = useState<SupportMessage[]>([
-    { id: '1', sender: 'agent', text: 'Hello! Welcome to Quxba Express Help Desk. 💜 I am equipped with real-time Google Search! Ask me about current events, trending tech, specifications, or shipment news.', timestamp: 'Just Now' }
+    { id: '1', sender: 'agent', text: 'Hello! Welcome to Quxba Jet Help Desk. 💜 I am equipped with real-time Google Search! Ask me about current events, trending tech, specifications, or shipment news.', timestamp: 'Just Now' }
   ]);
   const [inputMessage, setInputMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);

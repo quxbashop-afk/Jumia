@@ -339,7 +339,7 @@ export default function CartDrawer({
                 >
                   <div className="flex items-center gap-1.5 font-bold text-xs text-gray-800">
                     <Truck className="w-4 h-4 text-purple-500" />
-                    <span>Quxba Express</span>
+                    <span>Quxba Jet</span>
                   </div>
                   <p className="text-[10px] text-gray-500 mt-1">Direct home delivery inside 48 hours. Max comfort.</p>
                 </button>
