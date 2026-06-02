@@ -2980,7 +2980,68 @@ export function OrderSummaryCard({
           </div>
         </div>
       ) : (
-        <div className="space-y-4 pt-1">
+        <div className="space-y-5 pt-1">
+          {/* Visual Horizontal Progress Bar */}
+          <div className="bg-neutral-50/80 border border-neutral-100/80 rounded-xl p-4 sm:p-5">
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wider">Fulfillment Progress</span>
+              <span className="text-[10px] font-mono font-black text-purple-700 bg-purple-100 px-2.5 py-0.5 rounded-full select-none animate-pulse">
+                {Math.round((currentIndex / (steps.length - 1)) * 100)}% Complete
+              </span>
+            </div>
+            
+            <div className="relative flex items-center justify-between mt-4 mb-2 px-1">
+              {/* Main connecting track */}
+              <div className="absolute left-4 right-4 top-1/2 -translate-y-1/2 h-1 bg-gray-250 dark:bg-neutral-800 rounded-full z-0" />
+              {/* Active connecting track */}
+              <div 
+                className="absolute left-4 top-1/2 -translate-y-1/2 h-1 bg-gradient-to-r from-[#7c3aed] to-[#10b981] rounded-full transition-all duration-500 z-0"
+                style={{ width: `calc(${(currentIndex / (steps.length - 1)) * 100}% - 8px)` }}
+              />
+
+              {steps.map((st, idx) => {
+                const isPast = idx < currentIndex;
+                const isCurrent = idx === currentIndex;
+                const hasOccurred = isPast || isCurrent;
+
+                return (
+                  <div key={`progress-step-${st.key}`} className="relative flex flex-col items-center z-10">
+                    {/* Circle Node */}
+                    <div 
+                      className={`w-7 h-7 rounded-full flex items-center justify-center border-2 transition-all duration-300 font-bold text-xs ${
+                        isCurrent 
+                          ? 'bg-[#7c3aed] border-[#7c3aed] text-white ring-4 ring-purple-100 scale-110 shadow' 
+                          : isPast 
+                            ? 'bg-[#10b981] border-[#10b981] text-white' 
+                            : 'bg-white border-gray-300 text-gray-400'
+                      }`}
+                    >
+                      {isPast ? (
+                        <svg className="w-3.5 h-3.5 stroke-[3]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                      ) : (
+                        <span>{idx + 1}</span>
+                      )}
+                    </div>
+                    {/* Label */}
+                    <span 
+                      className={`text-[9.5px] font-extrabold tracking-tight mt-2 text-center max-w-[72px] leading-tight select-none ${
+                        isCurrent 
+                          ? 'text-[#7c3aed] font-black' 
+                          : hasOccurred 
+                            ? 'text-gray-700 font-bold' 
+                            : 'text-gray-400 font-medium'
+                      }`}
+                    >
+                      {st.key}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
           <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">Fulfillment Stepper Timeline</span>
           
           <div className="relative pl-6 space-y-6">
