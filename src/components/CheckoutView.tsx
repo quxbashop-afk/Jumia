@@ -403,11 +403,11 @@ export default function CheckoutView({
         {/* Upper Brand Info & Dark Mode Toggle Row */}
         <div className="flex justify-between items-center mb-8 border-b border-gray-200 dark:border-neutral-800 pb-4">
           <div className="text-left">
-            <span className="text-[9px] bg-purple-100 dark:bg-neutral-800 text-[#7c3aed] dark:text-[#a78bfa] border border-purple-250 dark:border-neutral-700 font-black px-2 py-0.5 rounded uppercase tracking-widest block w-fit">
+            <span className="hidden text-[9px] bg-purple-100 dark:bg-neutral-800 text-[#7c3aed] dark:text-[#a78bfa] border border-purple-250 dark:border-neutral-700 font-black px-2 py-0.5 rounded uppercase tracking-widest w-fit">
               🔒 Ultra secure 256-bit gateway
             </span>
             <h1 className="text-xl sm:text-2xl font-black tracking-tight mt-1 text-gray-900 dark:text-gray-100 font-display">
-              QUXBA ANNIVERSARY SECURE CHECKOUT
+              QUXBA SECURE CHECKOUT
             </h1>
           </div>
 
@@ -745,7 +745,7 @@ export default function CheckoutView({
                             setAddress(e.target.value);
                             if (errors.address) setErrors(prev => ({ ...prev, address: '' }));
                           }}
-                          placeholder="e.g. Flat 3B, Plot 12, Adeola Hopewell Street, Victoria Island"
+                          placeholder="Enter your exact destination delivery address"
                           className={`w-full bg-transparent border ${errors.address ? 'border-red-500' : 'border-gray-250 dark:border-neutral-800'} p-3 text-xs font-semibold rounded-lg focus:ring-1 focus:ring-[#7c3aed] focus:outline-none dark:text-white`}
                         />
                         {errors.address && <p className="text-red-500 text-[10px] font-black mt-1">⚠️ {errors.address}</p>}

@@ -894,6 +894,7 @@ export default function App() {
       rating: typeof newProduct.rating === 'number' && !isNaN(newProduct.rating) ? newProduct.rating : 5.0,
       reviewsCount: typeof newProduct.reviewsCount === 'number' && !isNaN(newProduct.reviewsCount) ? newProduct.reviewsCount : 0,
       isApproved: currentUser?.email === 'quxbashop@gmail.com' ? true : (newProduct.isApproved !== undefined ? newProduct.isApproved : false),
+      addedByAdmin: currentUser?.email === 'quxbashop@gmail.com' ? true : (newProduct.addedByAdmin !== undefined ? newProduct.addedByAdmin : false),
       createdAt: newProduct.createdAt || Date.now()
     };
 
@@ -928,9 +929,9 @@ export default function App() {
 
   const handleApproveProductFromAdmin = async (productId: string) => {
     // Optimistically update local state immediately
-    setProducts((prev) => prev.map((p) => p.id === productId ? { ...p, isApproved: true } : p));
+    setProducts((prev) => prev.map((p) => p.id === productId ? { ...p, isApproved: true, addedByAdmin: true } : p));
     try {
-      await updateDoc(doc(db, 'products', productId), { isApproved: true });
+      await updateDoc(doc(db, 'products', productId), { isApproved: true, addedByAdmin: true });
     } catch (error) {
       console.warn("Firestore background approval failed:", error);
     }
@@ -971,7 +972,13 @@ export default function App() {
   };
 
   // Only show approved products on public customer storefront
-  const publicProducts = products.filter((p) => p.isApproved);
+  // If a product was not added/approved by the admin (i.e. not in INITIAL_PRODUCTS and not marked admin-added), filter it out
+  const publicProducts = products.filter((p) => {
+    if (!p.isApproved) return false;
+    const isInitial = INITIAL_PRODUCTS.some((item) => item.id === p.id);
+    const isAdminAdded = p.addedByAdmin === true || p.sellerId === 'vendor-self' || p.sellerName === 'Supreme Appliances Ltd';
+    return isInitial || isAdminAdded;
+  });
 
   const filteredProducts = publicProducts.filter((product) => {
     const matchesCategory =
@@ -1191,7 +1198,7 @@ export default function App() {
             {/* Red Flash Sales Stage */}
             {selectedCategory === 'All Categories' && (
               <FlashSales
-                products={products}
+                products={publicProducts}
                 wishlist={wishlist}
                 onAddToCart={handleAddToCart}
                 onToggleWishlist={handleToggleWishlist}
@@ -1597,11 +1604,16 @@ export default function App() {
               categories={categories}
             />
           ) : (
-            <div className="bg-white rounded-xl shadow-md border border-red-50 p-8 max-w-md mx-auto text-center space-y-4 font-sans animate-fade-in my-10">
-              <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto text-2xl">🔒</div>
-              <h3 className="text-base font-black text-gray-800 uppercase tracking-tight">Access Restricted</h3>
-              <p className="text-xs text-gray-500 font-medium leading-relaxed">Only the store owner account (<strong className="text-purple-600 font-mono">quxbashop@gmail.com</strong>) has access to sell products and manage inventories.</p>
-              <button onClick={() => setCurrentView('storefront')} className="bg-[#7c3aed] hover:bg-purple-700 text-white font-bold text-xs px-5 py-2.5 rounded-lg transition uppercase cursor-pointer">Return to Shop</button>
+            <div className="bg-white rounded-xl shadow-md border border-neutral-100 p-8 max-w-md mx-auto text-center space-y-5 font-sans animate-fade-in my-10">
+              <div className="w-16 h-16 bg-purple-50 text-purple-600 rounded-full flex items-center justify-center mx-auto text-2xl">🏪</div>
+              <h3 className="text-base font-black text-gray-800 uppercase tracking-tight">Become a Quxba Merchant</h3>
+              <p className="text-xs text-gray-500 font-medium leading-relaxed">
+                Want to sell your products on our storefront? Authorized merchant accounts are curated directly by store admins. 
+              </p>
+              <div className="bg-purple-50/50 rounded-lg p-3 text-xs text-purple-900 font-medium">
+                Please submit your product inventory catalog and merchant request directly to <a href="mailto:quxbashop@gmail.com" className="text-purple-700 underline font-semibold">quxbashop@gmail.com</a>
+              </div>
+              <button onClick={() => setCurrentView('storefront')} className="bg-[#7c3aed] hover:bg-purple-700 text-white font-bold text-xs px-5 py-2.5 rounded-lg transition uppercase cursor-pointer w-full">Return to Shop</button>
             </div>
           )
         )}
@@ -1717,6 +1729,9 @@ export default function App() {
             <h4 className="text-sm font-bold text-white uppercase tracking-wider">Partner with Quxba</h4>
             <ul className="space-y-2 text-xs text-gray-400">
               <li><button onClick={() => setCurrentView('seller')} className="hover:text-white transition font-bold text-purple-400">Sell on Quxba (Seller Zone)</button></li>
+              <li className="text-[11px] text-gray-400 leading-normal mt-1 border-t border-gray-800/60 pt-2">
+                Want to sell your products? Send your request to <a href="mailto:quxbashop@gmail.com" className="text-purple-400 font-semibold hover:underline">quxbashop@gmail.com</a>
+              </li>
             </ul>
           </div>
 

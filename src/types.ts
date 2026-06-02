@@ -32,6 +32,7 @@ export interface Product {
   isFlashSale?: boolean;
   specifications?: Record<string, string>;
   isApproved?: boolean; // Vendor submission state
+  addedByAdmin?: boolean; // Explicitly marked if created or approved by the store owner/admin
   brand?: string;
   createdAt?: number;
   reviews?: Array<{
