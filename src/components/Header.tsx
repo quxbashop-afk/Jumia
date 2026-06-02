@@ -18,6 +18,7 @@ interface HeaderProps {
   currentUser: UserAccount | null;
   onLogout: () => void;
   onOpenAuthModal: () => void;
+  categories?: any[];
 }
 
 export default function Header({
@@ -34,7 +35,8 @@ export default function Header({
   onSelectProduct,
   currentUser,
   onLogout,
-  onOpenAuthModal
+  onOpenAuthModal,
+  categories = []
 }: HeaderProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -370,15 +372,13 @@ export default function Header({
                         <Heart className="w-4 h-4 text-gray-500" />
                         <span>Saved Items (Wishlist)</span>
                       </button>
-                      {currentUser.email === 'quxbashop@gmail.com' && (
-                        <button 
-                          onClick={() => { onToggleView('support'); setShowAccountMenu(false); }}
-                          className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-purple-50 hover:text-[#7c3aed] flex items-center gap-2.5 transition"
-                        >
-                          <BadgeHelp className="w-4 h-4 text-gray-500" />
-                          <span>Live Chat Support</span>
-                        </button>
-                      )}
+                      <button 
+                        onClick={() => { onToggleView('support'); setShowAccountMenu(false); }}
+                        className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-purple-50 hover:text-[#7c3aed] flex items-center gap-2.5 transition"
+                      >
+                        <BadgeHelp className="w-4 h-4 text-gray-500" />
+                        <span>Live Chat Support</span>
+                      </button>
                     </div>
 
                     {currentUser.email === 'quxbashop@gmail.com' && (
@@ -480,12 +480,7 @@ export default function Header({
           <span className="text-gray-400 mr-2 flex items-center gap-1.5"><Percent className="w-4 h-4 text-purple-500" /> Quick Categories:</span>
           {[
             'All Categories',
-            'Electronics & Appliances',
-            'Phones & Tablets',
-            'Computers & Accessories',
-            'Fashion & Apparel',
-            'Supermarket & Groceries',
-            'Health & Beauty'
+            ...categories.map(c => c.name)
           ].map((cat) => (
             <button
               key={cat}

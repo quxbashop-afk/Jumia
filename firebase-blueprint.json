@@ -68,6 +68,22 @@
         "createdAt": { "type": "number" }
       },
       "required": ["id", "title", "subtitle", "badge", "buttonText", "imageUrl", "category", "bgColor", "createdAt"]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "A dynamic product category which can be managed by Admin and displayed on storefront",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "desc": { "type": "string" },
+        "emoji": { "type": "string" },
+        "subcategories": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "required": ["id", "name", "desc", "emoji"]
     }
   },
   "firestore": {
@@ -86,6 +102,10 @@
     "adverts/{advertId}": {
       "schema": "Advertisement",
       "description": "The carousel advertisements collection"
+    },
+    "categories/{categoryId}": {
+      "schema": "Category",
+      "description": "Dynamic categories collection managed by administrators"
     }
   }
 }

@@ -123,5 +123,10 @@ service cloud.firestore {
       allow create, update: if isValidId(advertId) && isValidAdvert(incoming());
       allow delete: if isValidId(advertId);
     }
+
+    // --- Categories Collection ---
+    match /categories/{categoryId} {
+      allow read, write: if true;
+    }
   }
 }

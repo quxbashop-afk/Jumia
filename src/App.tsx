@@ -22,6 +22,7 @@ import {
 
 import { INITIAL_PRODUCTS } from './data/products';
 import quxbaLogo from './assets/images/quxba_logo_1780098066924.png';
+import quxbaBlocksBanner from './assets/images/quxba_blocks_banner_1780389199277.png';
 import { Product, CartItem, Order, UserAccount } from './types';
 import { 
   Zap, Flame, Percent, RefreshCcw, Landmark, Award, ShieldCheck, HelpCircle, Smartphone, ArrowRight,
@@ -55,6 +56,106 @@ import {
 export default function App() {
   // Syncing States to Client-Side Local Storage & Firebase Firestore
   const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
+
+  const DEFAULT_CATEGORIES = [
+    {
+      id: 'electronics',
+      name: 'Electronics & Appliances',
+      desc: 'Fridges, ACs, smart TVs, soundbars',
+      emoji: '🔌',
+      subcategories: ['Refrigerators', 'Air Conditioners', 'Smart TVs', 'Audio Setups']
+    },
+    {
+      id: 'phones',
+      name: 'Phones & Tablets',
+      desc: 'Latest devices, powerbanks, chargers',
+      emoji: '📱',
+      subcategories: ['Smartphones', 'Tablets', 'Chargers & Powerbanks']
+    },
+    {
+      id: 'computers',
+      name: 'Computers & Accessories',
+      desc: 'Laptops, mouse, keyboards, monitors',
+      emoji: '💻',
+      subcategories: ['Laptops', 'Keyboards & Mice', 'Monitors']
+    },
+    {
+      id: 'fashion',
+      name: 'Fashion & Apparel',
+      desc: 'Wears, sneakers, shoes, bags',
+      emoji: '👕',
+      subcategories: [
+        "Women's Fashion",
+        "Men's Fashion",
+        "Shoes",
+        "Bags",
+        "Accessories",
+        "Watches",
+        "High Glass"
+      ]
+    },
+    {
+      id: 'supermarket',
+      name: 'Supermarket & Groceries',
+      desc: 'Food items, snacks, drinks, dishwashers',
+      emoji: '🍏',
+      subcategories: ['Grains & Pasta', 'Snacks', 'Soft Drinks', 'Household']
+    },
+    {
+      id: 'health',
+      name: 'Health & Beauty',
+      desc: 'Skincare, lotions, roll-on, body spray',
+      emoji: '🧴',
+      subcategories: ['Skincare', 'Makeup', 'Perfumes & Deodorant']
+    }
+  ];
+
+  const [categories, setCategories] = useState<any[]>(() => {
+    const saved = localStorage.getItem('quxba_local_categories');
+    return saved ? JSON.parse(saved) : DEFAULT_CATEGORIES;
+  });
+  const [selectedSubcategory, setSelectedSubcategory] = useState<string>('All');
+  
+  // Admin category editing states
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [adminSelectedCatId, setAdminSelectedCatId] = useState<string>('');
+  const [adminCatName, setAdminCatName] = useState('');
+  const [adminCatEmoji, setAdminCatEmoji] = useState('📦');
+  const [adminCatDesc, setAdminCatDesc] = useState('');
+  const [adminCatSubs, setAdminCatSubs] = useState('');
+  const [catSaving, setCatSaving] = useState(false);
+  const [catError, setCatError] = useState('');
+  const [catSuccess, setCatSuccess] = useState('');
+
+  // Categories realtime syncing
+  useEffect(() => {
+    const ref = collection(db, 'categories');
+    const unsubscribe = onSnapshot(ref, async (snapshot) => {
+      if (snapshot.empty) {
+        setCategories(DEFAULT_CATEGORIES);
+        try {
+          // Auto-seed Categories collection on first-load
+          for (const item of DEFAULT_CATEGORIES) {
+            const docRef = doc(db, 'categories', item.id);
+            await setDoc(docRef, item);
+          }
+        } catch (err) {
+          console.warn("Categories sync database seed skipped/failed:", err);
+        }
+      } else {
+        const catList: any[] = [];
+        snapshot.forEach((snap) => {
+          catList.push(snap.data());
+        });
+        catList.sort((a, b) => a.name.localeCompare(b.name));
+        setCategories(catList);
+        localStorage.setItem('quxba_local_categories', JSON.stringify(catList));
+      }
+    }, (error) => {
+      console.warn("Categories realtime stream skipped or failed:", error);
+    });
+    return unsubscribe;
+  }, []);
 
   const [cart, setCart] = useState<CartItem[]>(() => {
     const saved = localStorage.getItem('jumia_user_cart');
@@ -430,6 +531,87 @@ export default function App() {
     }
   };
 
+  const handleOpenCategoryManager = (catToEdit?: any) => {
+    if (catToEdit) {
+      setAdminSelectedCatId(catToEdit.id);
+      setAdminCatName(catToEdit.name);
+      setAdminCatEmoji(catToEdit.emoji || '📦');
+      setAdminCatDesc(catToEdit.desc || '');
+      setAdminCatSubs(catToEdit.subcategories ? catToEdit.subcategories.join(', ') : '');
+    } else {
+      setAdminSelectedCatId('');
+      setAdminCatName('');
+      setAdminCatEmoji('📦');
+      setAdminCatDesc('');
+      setAdminCatSubs('');
+    }
+    setCatError('');
+    setCatSuccess('');
+    setIsCategoryModalOpen(true);
+  };
+
+  const handleSaveCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adminCatName.trim()) {
+      setCatError('Category Name cannot be blank.');
+      return;
+    }
+    setCatSaving(true);
+    setCatError('');
+    setCatSuccess('');
+
+    const targetId = adminSelectedCatId || adminCatName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const subList = adminCatSubs
+      .split(',')
+      .map(s => s.trim())
+      .filter(s => s.length > 0);
+
+    const docData = {
+      id: targetId,
+      name: adminCatName.trim(),
+      emoji: adminCatEmoji.trim(),
+      desc: adminCatDesc.trim(),
+      subcategories: subList
+    };
+
+    try {
+      await setDoc(doc(db, 'categories', targetId), docData);
+      setCatSuccess(adminSelectedCatId ? 'Category edited successfully!' : 'Category added successfully!');
+      
+      setTimeout(() => {
+        setIsCategoryModalOpen(false);
+      }, 1000);
+    } catch (err: any) {
+      console.error(err);
+      setCatError('Failed to save category: ' + err.message);
+    } finally {
+      setCatSaving(false);
+    }
+  };
+
+  const handleDeleteCategory = async (id: string, name: string) => {
+    if (!window.confirm(`Are you sure you want to delete the category "${name}"? This is irreversible.`)) {
+      return;
+    }
+    setCatSaving(true);
+    setCatError('');
+    setCatSuccess('');
+    try {
+      await deleteDoc(doc(db, 'categories', id));
+      setCatSuccess('Category deleted successfully!');
+      setAdminSelectedCatId('');
+      setAdminCatName('');
+      setAdminCatEmoji('📦');
+      setAdminCatDesc('');
+      setAdminCatSubs('');
+    } catch (err: any) {
+      console.error(err);
+      setCatError('Failed to delete category: ' + err.message);
+    } finally {
+      setCatSaving(false);
+    }
+  };
+
   // Navigation states
   const [selectedCategory, setSelectedCategory] = useState(() => {
     return localStorage.getItem('quxba_selected_category') || 'All Categories';
@@ -447,6 +629,7 @@ export default function App() {
   // Track state changes to sync with local storage
   useEffect(() => {
     localStorage.setItem('quxba_selected_category', selectedCategory);
+    setSelectedSubcategory('All');
   }, [selectedCategory]);
 
   useEffect(() => {
@@ -701,40 +884,65 @@ export default function App() {
      Vendor & Admin Operations
      ========================================================================== */
   const handleAddNewProductFromSeller = async (newProduct: Product) => {
+    // Sanitize product properties to avoid NaN and ensure valid data types for Firestore validation rules
+    const sanitizedProduct = {
+      ...newProduct,
+      price: typeof newProduct.price === 'number' && !isNaN(newProduct.price) ? newProduct.price : 0,
+      originalPrice: typeof newProduct.originalPrice === 'number' && !isNaN(newProduct.originalPrice) ? newProduct.originalPrice : (newProduct.price || 0) * 1.25,
+      discount: typeof newProduct.discount === 'number' && !isNaN(newProduct.discount) ? newProduct.discount : 0,
+      stock: typeof newProduct.stock === 'number' && !isNaN(newProduct.stock) ? newProduct.stock : 50,
+      rating: typeof newProduct.rating === 'number' && !isNaN(newProduct.rating) ? newProduct.rating : 5.0,
+      reviewsCount: typeof newProduct.reviewsCount === 'number' && !isNaN(newProduct.reviewsCount) ? newProduct.reviewsCount : 0,
+      isApproved: currentUser?.email === 'quxbashop@gmail.com' ? true : (newProduct.isApproved !== undefined ? newProduct.isApproved : false),
+      createdAt: newProduct.createdAt || Date.now()
+    };
+
+    // Optimistically update local React state immediately so it's lightning-fast!
+    setProducts((prev) => {
+      const idx = prev.findIndex((p) => p.id === sanitizedProduct.id);
+      if (idx > -1) {
+        const updated = [...prev];
+        updated[idx] = sanitizedProduct;
+        return updated;
+      }
+      return [sanitizedProduct, ...prev];
+    });
+
     try {
-      // Force auto-approval for admin (quxbashop@gmail.com) added products so they show instantly
-      const isAdminUser = currentUser?.email === 'quxbashop@gmail.com';
-      await setDoc(doc(db, 'products', newProduct.id), {
-        ...newProduct,
-        isApproved: isAdminUser ? true : (newProduct.isApproved !== undefined ? newProduct.isApproved : false),
-        createdAt: Date.now()
-      });
+      // Background persist to Firestore without blocking the UI
+      await setDoc(doc(db, 'products', sanitizedProduct.id), sanitizedProduct);
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `products/${newProduct.id}`);
+      console.warn("Firestore background sync failed, product kept in local memory cache:", error);
     }
   };
 
   const handleDeleteProduct = async (productId: string) => {
+    // Optimistically update local state immediately
+    setProducts((prev) => prev.filter((p) => p.id !== productId));
     try {
       await deleteDoc(doc(db, 'products', productId));
     } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, `products/${productId}`);
+      console.warn("Firestore background delete failed, product remaining locally:", error);
     }
   };
 
   const handleApproveProductFromAdmin = async (productId: string) => {
+    // Optimistically update local state immediately
+    setProducts((prev) => prev.map((p) => p.id === productId ? { ...p, isApproved: true } : p));
     try {
       await updateDoc(doc(db, 'products', productId), { isApproved: true });
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `products/${productId}`);
+      console.warn("Firestore background approval failed:", error);
     }
   };
 
   const handleRejectProductFromAdmin = async (productId: string) => {
+    // Optimistically update local state immediately
+    setProducts((prev) => prev.filter((p) => p.id !== productId));
     try {
       await deleteDoc(doc(db, 'products', productId));
     } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, `products/${productId}`);
+      console.warn("Firestore background rejection failed:", error);
     }
   };
 
@@ -769,6 +977,14 @@ export default function App() {
     const matchesCategory =
       selectedCategory === 'All Categories' || product.category === selectedCategory;
     
+    // Check dynamic subcategory matching
+    const productSub = product.specifications?.['Subcategory'] || (product as any).subcategory || '';
+    const matchesSubcategory =
+      selectedSubcategory === 'All' ||
+      productSub === selectedSubcategory ||
+      product.name.toLowerCase().includes(selectedSubcategory.toLowerCase()) ||
+      product.description.toLowerCase().includes(selectedSubcategory.toLowerCase());
+    
     const matchesSearch =
       searchQuery.trim() === '' ||
       product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -779,7 +995,7 @@ export default function App() {
     const matchesMaxPrice = maxPrice === '' || product.price <= maxPrice;
     const matchesBrand = selectedBrands.length === 0 || selectedBrands.includes(getProductBrand(product));
 
-    return matchesCategory && matchesSearch && matchesMinPrice && matchesMaxPrice && matchesBrand;
+    return matchesCategory && matchesSubcategory && matchesSearch && matchesMinPrice && matchesMaxPrice && matchesBrand;
   });
 
   const sortedProducts = [...filteredProducts].sort((a, b) => {
@@ -857,7 +1073,7 @@ export default function App() {
         onOpenWishlist={() => setIsWishlistOpen(true)}
         onToggleView={(view) => {
           // Guard unauthorized view access
-          if (view === 'seller' || view === 'admin' || view === 'support') {
+          if (view === 'seller' || view === 'admin') {
             if (!currentUser || currentUser.email !== 'quxbashop@gmail.com') {
               setAuthMode('signin');
               setAuthError('Access Denied. Only quxbashop@gmail.com can access admin zones.');
@@ -879,6 +1095,7 @@ export default function App() {
         currentUser={currentUser}
         onLogout={handleLogout}
         onOpenAuthModal={() => { setAuthMode('signin'); setAuthError(''); setShowAuthModal(true); }}
+        categories={categories}
       />
 
       {/* Primary Workspace Stage */}
@@ -896,26 +1113,34 @@ export default function App() {
                   OUR DEPARTMENTS 🛒
                 </span>
                 {[
-                  'All Categories',
-                  'Electronics & Appliances',
-                  'Phones & Tablets',
-                  'Computers & Accessories',
-                  'Fashion & Apparel',
-                  'Supermarket & Groceries',
-                  'Health & Beauty'
+                  { name: 'All Categories', emoji: '🏬' },
+                  ...categories
                 ].map((category) => (
                   <button
-                    key={category}
-                    onClick={() => setSelectedCategory(category)}
-                    className={`w-full text-left px-3 py-2.5 rounded-lg text-xs font-semibold tracking-wide transition-all ${
-                      selectedCategory === category
+                    key={category.name}
+                    onClick={() => setSelectedCategory(category.name)}
+                    className={`w-full text-left px-3 py-2.5 rounded-lg text-xs font-semibold tracking-wide transition-all flex items-center gap-2 ${
+                      selectedCategory === category.name
                         ? 'bg-purple-50 text-[#7c3aed] font-bold border-l-4 border-l-[#7c3aed] pl-4'
                         : 'text-gray-600 hover:bg-gray-50'
                     }`}
                   >
-                    {category}
+                    <span className="text-sm">{category.emoji || '📦'}</span>
+                    <span>{category.name}</span>
                   </button>
                 ))}
+
+                {currentUser?.email === 'quxbashop@gmail.com' && (
+                  <div className="pt-3 border-t border-gray-150 mt-2">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenCategoryManager()}
+                      className="w-full text-left px-3 py-2 rounded bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-[10px] font-black tracking-wider uppercase transition flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+                    >
+                      <span>🛠️ Category Control Deck</span>
+                    </button>
+                  </div>
+                )}
                 
                 {/* Visual mini-ad widget */}
                 <div className="bg-gradient-to-br from-purple-600 to-indigo-600 rounded-lg p-3 text-white mt-6 shadow-sm">
@@ -1044,15 +1269,10 @@ export default function App() {
                         {/* Department Radio Selectors */}
                         <div className="space-y-2">
                           <span className="text-[10px] font-black uppercase text-gray-400 tracking-wider block font-sans">Department</span>
-                          <div className="space-y-1 max-h-48 overflow-y-auto pr-1">
+                          <div className="space-y-1 max-h-48 overflow-y-auto pr-1 font-sans">
                             {[
                               'All Categories',
-                              'Electronics & Appliances',
-                              'Phones & Tablets',
-                              'Computers & Accessories',
-                              'Fashion & Apparel',
-                              'Supermarket & Groceries',
-                              'Health & Beauty'
+                              ...categories.map(c => c.name)
                             ].map((cat) => (
                               <label key={cat} className="flex items-center gap-2.5 text-xs font-semibold text-gray-700 cursor-pointer hover:text-purple-500 transition py-0.5">
                                 <input
@@ -1270,39 +1490,23 @@ export default function App() {
                       ) : (
                         /* Beautiful Category Rows layout on actual homepage */
                         <div className="space-y-8 animate-fade-in text-left">
-                          {[
-                            { name: 'Electronics & Appliances', emoji: '🔌', subtitle: 'Explore heavy-duty refrigerators, split air conditioners, smart TVs & audio setups.' },
-                            { name: 'Phones & Tablets', emoji: '📱', subtitle: 'Find the latest smartphones, premium corporate pads & accessory lines with genuine warranties.' },
-                            { name: 'Computers & Accessories', emoji: '💻', subtitle: 'Upgrade your work setup with heavy-duty laptops, screens & drives.' },
-                            { name: 'Fashion & Apparel', emoji: '👕', subtitle: 'Premium styles, lightweight activewear, designer canvas sneakers & elegant wristwatches.' },
-                            { name: 'Supermarket & Groceries', emoji: '🍏', subtitle: 'Get quick handpicked kitchen items, nutritious breakfast packs & essential provisions.' },
-                            { name: 'Health & Beauty', emoji: '💄', subtitle: 'Premium cosmetic brands, organic skincare routines, beauty serums & luxury designer scents.' }
-                          ].map((sec) => {
+                          {categories.map((sec) => {
                             const catProducts = publicProducts.filter(p => p.category === sec.name).slice(0, 4);
                             if (catProducts.length === 0) return null;
                             return (
                               <div key={sec.name} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden pb-5 sm:pb-6 space-y-4">
                                 {/* Signature Brand Header Banner (Matches requested styling mockup) */}
-                                <div className="bg-[#7c3aed] px-4 py-2.5 sm:px-5 flex items-center justify-between text-white font-sans font-black tracking-wider uppercase">
+                                <div className="bg-[#7c3aed] px-4 py-2.5 sm:px-5 flex items-center justify-between text-white font-sans font-black tracking-wider uppercase bg-linear-to-r from-[#7c3aed] to-[#6d28d9]">
                                   <span className="font-black tracking-wider flex items-center gap-1.5">
-                                    <span className="text-sm">{sec.emoji}</span>
+                                    <span className="text-sm">{sec.emoji || '📦'}</span>
                                     <span style={{ fontSize: '9px', lineHeight: '15px' }} className="font-black">
-                                      {sec.name === 'Fashion & Apparel' 
-                                        ? 'FASHION DEALS' 
-                                        : sec.name === 'Phones & Tablets' 
-                                        ? 'PHONES & TABLETS DEALS' 
-                                        : sec.name === 'Electronics & Appliances' 
-                                        ? 'ELECTRONICS & APPLIANCES DEALS' 
-                                        : sec.name === 'Computers & Accessories' 
-                                        ? 'COMPUTERS & ACCESSORIES DEALS' 
-                                        : sec.name === 'Supermarket & Groceries' 
-                                        ? 'SUPERMARKET & GROCERIES DEALS' 
-                                        : 'HEALTH & BEAUTY DEALS'}
+                                      {sec.name.toUpperCase()} DEALS
                                     </span>
                                   </span>
                                   <button
                                     onClick={() => {
                                       setSelectedCategory(sec.name);
+                                      setSelectedSubcategory('All');
                                       window.scrollTo({ top: 300, behavior: 'smooth' });
                                     }}
                                     className="hover:underline font-black tracking-widest cursor-pointer select-none uppercase"
@@ -1311,6 +1515,47 @@ export default function App() {
                                     SEE ALL
                                   </button>
                                 </div>
+
+                                {/* Dynamic Subcategories Filter Row inside each row item so users can instantly filter by Subcategory! */}
+                                {sec.subcategories && sec.subcategories.length > 0 && (
+                                  <div className="px-5 py-2.5 bg-gray-50/70 border-b border-gray-100/50 overflow-x-auto whitespace-nowrap scrollbar-none flex items-center gap-2">
+                                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest mr-2 select-none">Filters:</span>
+                                    <button
+                                      onClick={() => {
+                                        setSelectedCategory(sec.name);
+                                        setSelectedSubcategory('All');
+                                        window.scrollTo({ top: 300, behavior: 'smooth' });
+                                      }}
+                                      className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase transition ${
+                                        selectedCategory === sec.name && selectedSubcategory === 'All'
+                                          ? 'bg-[#7c3aed] text-white shadow-xs'
+                                          : 'bg-white text-gray-500 border border-gray-150 hover:bg-gray-50'
+                                      }`}
+                                    >
+                                      All Products
+                                    </button>
+                                    {sec.subcategories.map((sub: string) => {
+                                      const isCurrent = selectedCategory === sec.name && selectedSubcategory === sub;
+                                      return (
+                                        <button
+                                          key={sub}
+                                          onClick={() => {
+                                            setSelectedCategory(sec.name);
+                                            setSelectedSubcategory(sub);
+                                            window.scrollTo({ top: 300, behavior: 'smooth' });
+                                          }}
+                                          className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase transition ${
+                                            isCurrent
+                                              ? 'bg-[#7c3aed] text-white shadow-xs'
+                                              : 'bg-white text-gray-500 border border-gray-200 hover:border-purple-300 hover:text-purple-600'
+                                          }`}
+                                        >
+                                          {sub}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                )}
 
                                 <div className="px-4.5 sm:px-6 space-y-4">
                                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 font-sans">
@@ -1349,6 +1594,7 @@ export default function App() {
               products={products}
               onAddNewProduct={handleAddNewProductFromSeller}
               onDeleteProduct={handleDeleteProduct}
+              categories={categories}
             />
           ) : (
             <div className="bg-white rounded-xl shadow-md border border-red-50 p-8 max-w-md mx-auto text-center space-y-4 font-sans animate-fade-in my-10">
@@ -1398,16 +1644,7 @@ export default function App() {
         )}
 
         {currentView === 'support' && (
-          currentUser?.email === 'quxbashop@gmail.com' ? (
-            <CustomerSupportChat />
-          ) : (
-            <div className="bg-white rounded-xl shadow-md border border-red-50 p-8 max-w-md mx-auto text-center space-y-4 font-sans animate-fade-in my-10">
-              <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto text-2xl">🔒</div>
-              <h3 className="text-base font-black text-gray-800 uppercase tracking-tight">Live Support Desk</h3>
-              <p className="text-xs text-gray-500 font-medium leading-relaxed">Live support assistance channel is authorized for store management (<strong className="text-purple-600 font-mono">quxbashop@gmail.com</strong>) to chat with clients.</p>
-              <button onClick={() => setCurrentView('storefront')} className="bg-[#7c3aed] hover:bg-purple-700 text-white font-bold text-xs px-5 py-2.5 rounded-lg transition uppercase cursor-pointer font-sans">Return to Shop</button>
-            </div>
-          )
+          <CustomerSupportChat />
         )}
 
         {currentView === 'checkout' && (
@@ -1417,7 +1654,7 @@ export default function App() {
             onPlaceOrder={handlePlaceOrder}
             onClearCart={handleClearCart}
             onToggleView={(view) => {
-              if (view === 'seller' || view === 'admin' || view === 'support') {
+              if (view === 'seller' || view === 'admin') {
                 if (!currentUser || currentUser.email !== 'quxbashop@gmail.com') {
                   setAuthMode('signin');
                   setAuthError('Access Denied. Only quxbashop@gmail.com can access admin zones.');
@@ -1464,7 +1701,7 @@ export default function App() {
               </span>
             </div>
             <p className="text-xs text-gray-400 leading-relaxed">
-              Quxba is the leading e-commerce platform. Discover incredible discounts, electronic flash sales, clothes, and groceries delivered straight to your residence.
+              QUXBA Shop Online for Women's fashion, Men's fashion Electronics, Phones, Computers, Accessories, Fashion, Shoes.
             </p>
           </div>
 
@@ -1485,7 +1722,6 @@ export default function App() {
 
           <div className="space-y-4 text-xs">
             <h4 className="text-sm font-bold text-white uppercase tracking-wider">Quxba Newsletter</h4>
-            <p className="text-gray-400 leading-relaxed">Get first pings when flash sales on refrigerators and ACs begin!</p>
             <div className="flex gap-1.5">
               <input 
                 type="email" 
@@ -1827,7 +2063,7 @@ export default function App() {
                 { label: 'Seller Dashboard (Sell on Quxba)', desc: 'Submit and manage commercial inventory', view: 'seller', color: 'text-purple-600 bg-purple-50', adminOnly: true },
                 { label: 'Admin Control Room', desc: 'Audit submissions and authorize catalog items', view: 'admin', color: 'text-purple-600 bg-purple-50', adminOnly: true },
                 { label: 'Track Packages & Orders', desc: 'Real-time logistics courier updates', view: 'orders', color: 'text-blue-600 bg-blue-50', adminOnly: false },
-                { label: 'Live Assistance Chat Room', desc: 'Converse 24/7 with a dedicated service agent', view: 'support', color: 'text-green-600 bg-green-50', adminOnly: true },
+                { label: 'Live Assistance Chat Room', desc: 'Converse 24/7 with a dedicated service agent', view: 'support', color: 'text-green-600 bg-green-50', adminOnly: false },
               ].filter(act => {
                 if (act.adminOnly) {
                   return currentUser?.email === 'quxbashop@gmail.com';
@@ -1916,10 +2152,14 @@ export default function App() {
             id="auth-modal-panel"
           >
             {/* Upper Quxba Banner */}
-            <div className="bg-[#7c3aed] text-white px-6 py-5 flex items-center justify-between">
-              <div className="space-y-0.5">
-                <span className="font-display font-black text-xl italic tracking-wide">QUXBA MALL</span>
-                <p className="text-[10px] uppercase font-black tracking-widest text-purple-100">Anniversary Auth Center</p>
+            <div className="bg-black text-white px-6 py-4 flex items-center justify-between border-b border-zinc-800">
+              <div className="flex items-center">
+                <img 
+                  src={quxbaBlocksBanner} 
+                  alt="Quxba Blocks Logo" 
+                  className="h-10 w-auto object-contain"
+                  referrerPolicy="no-referrer"
+                />
               </div>
               <button 
                 onClick={() => {
@@ -1928,7 +2168,7 @@ export default function App() {
                   setAuthEmail('');
                   setAuthPassword('');
                 }}
-                className="text-black/70 hover:text-black hover:bg-black/10 transition p-1.5 rounded-full"
+                className="text-white/60 hover:text-white hover:bg-white/10 transition p-1.5 rounded-full"
                 aria-label="Close authentication modal"
               >
                 <X className="w-5 h-5" />
@@ -1978,12 +2218,7 @@ export default function App() {
                 </button>
               </div>
 
-              {/* Custom descriptive tip */}
-              <p className="text-xs text-gray-400 font-medium text-center">
-                {authMode === 'signin' 
-                  ? "Access your personal dashboard to track purchases or verify authorized seller configurations."
-                  : "Register as a Quxba Prime customer to buy hot anniversary appliances and trace shipment logs."}
-              </p>
+
 
               {/* Input Form Fields */}
               <form 
@@ -2013,7 +2248,7 @@ export default function App() {
                       </span>
                       <input
                         type="text"
-                        placeholder="e.g. Kola Adesina"
+                        placeholder="e.g. John Coaster"
                         value={authName}
                         onChange={(e) => setAuthName(e.target.value)}
                         className="w-full bg-slate-50 border border-gray-200 rounded-lg pl-9 pr-3.5 py-2 text-xs focus:ring-1 focus:ring-brand-primary font-bold focus:outline-none"
@@ -2089,13 +2324,7 @@ export default function App() {
                 <span>Continue with Google</span>
               </button>
 
-              <div className="mt-4 bg-[#f5f3ff] border border-purple-100 rounded-lg p-3 text-[10.5px] text-purple-800 leading-normal font-medium">
-                <p className="font-bold text-purple-950 mb-1">💡 Google Login Tips:</p>
-                <ul className="list-disc list-inside space-y-1 text-purple-900/90 text-left">
-                  <li>Please make sure to click <strong className="text-purple-950">"Open in New Tab"</strong> at the top right of the preview so Google's login popup can open safely outside the sandboxed iframe.</li>
-                  <li>Ensure your application's domain is added to <strong className="text-purple-950">Authorized Domains</strong> in your Firebase Console under <em className="not-italic">Authentication ➔ Settings</em>.</li>
-                </ul>
-              </div>
+
 
             </div>
           </div>
@@ -2413,6 +2642,169 @@ export default function App() {
               >
                 Accept & Close
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Category Manager Admin control center Modal overlay */}
+      {isCategoryModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in font-sans" id="category-control-modal-overlay">
+          <div 
+            className="bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-150 flex flex-col animate-slide-up w-full max-w-2xl max-h-[90vh]"
+            onClick={(e) => e.stopPropagation()}
+            id="category-modal-panel"
+          >
+            {/* Modal Header */}
+            <div className="bg-[#7c3aed] text-white px-6 py-5 flex items-center justify-between animate-fade-in">
+              <div className="flex items-center gap-2.5">
+                <div className="bg-white/20 p-2 rounded-lg text-lg">📁</div>
+                <div>
+                  <h3 className="font-display font-black text-sm uppercase tracking-wider text-white">CATEGORY CONTROL DECK</h3>
+                  <p className="text-[10px] text-purple-100 uppercase tracking-widest font-black">Configure & Manage Store Departments</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsCategoryModalOpen(false)}
+                className="text-white/80 hover:text-white hover:bg-white/10 transition p-1.5 rounded-full cursor-pointer bg-transparent outline-none border-0"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 overflow-y-auto space-y-6 text-left">
+              {/* List of existing categories first */}
+              <div>
+                <span className="text-[10px] font-black uppercase text-gray-400 tracking-wider block mb-2">Existing Store Departments ({categories.length})</span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto scrollbar-thin pr-1">
+                  {categories.map((cat) => (
+                    <div 
+                      key={cat.id} 
+                      className={`p-3 rounded-lg border flex items-center justify-between transition ${
+                        adminSelectedCatId === cat.id 
+                          ? 'bg-purple-50/50 border-purple-300' 
+                          : 'bg-gray-50/60 border-gray-100 hover:border-gray-200'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span className="text-lg bg-white p-1 rounded border border-gray-100/55 shadow-2xs flex-shrink-0">{cat.emoji || '📦'}</span>
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-gray-800 truncate">{cat.name}</p>
+                          <p className="text-[9px] text-gray-400 font-medium truncate">
+                            {cat.subcategories && cat.subcategories.length > 0 
+                              ? `${cat.subcategories.length} subcategories` 
+                              : 'No subcategories'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenCategoryManager(cat)}
+                          className="p-1 hover:bg-purple-100 rounded transition cursor-pointer text-xs"
+                          title="Edit department"
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteCategory(cat.id, cat.name)}
+                          className="p-1 hover:bg-red-100 rounded transition cursor-pointer text-xs"
+                          title="Delete department"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Form to Create/Edit */}
+              <form onSubmit={handleSaveCategory} className="space-y-4 border-t border-gray-100 pt-4">
+                <span className="text-[10px] font-black uppercase text-[#7c3aed] tracking-wider block">
+                  {adminSelectedCatId ? '✏️ EDIT SELECT DEPARTMENT' : '✨ INVENT NEW DEPARTMENT'}
+                </span>
+
+                {catError && (
+                  <div className="p-3 bg-red-50 text-red-600 text-xs rounded border border-red-150 font-semibold">{catError}</div>
+                )}
+                {catSuccess && (
+                  <div className="p-3 bg-green-50 text-green-700 text-xs rounded border border-green-150 font-semibold">{catSuccess}</div>
+                )}
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="col-span-1">
+                    <label className="block text-[9.5px] font-black text-gray-500 uppercase mb-1">Emoji Icon</label>
+                    <input
+                      type="text"
+                      value={adminCatEmoji}
+                      onChange={(e) => setAdminCatEmoji(e.target.value)}
+                      placeholder="e.g. 🎒"
+                      maxLength={4}
+                      className="w-full bg-white border border-gray-250 rounded px-2.5 py-2 text-xs text-center font-bold focus:ring-1 focus:ring-[#7c3aed] focus:outline-none"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-[9.5px] font-black text-gray-500 uppercase mb-1">Department Title *</label>
+                    <input
+                      type="text"
+                      value={adminCatName}
+                      onChange={(e) => setAdminCatName(e.target.value)}
+                      placeholder="e.g. Toys & Playgrounds"
+                      className="w-full bg-white border border-gray-250 rounded px-2.5 py-2 text-xs font-bold focus:ring-1 focus:ring-[#7c3aed] focus:outline-none placeholder-gray-300 text-gray-800"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[9.5px] font-black text-gray-500 uppercase mb-1">Short Description / Subtitle</label>
+                  <input
+                    type="text"
+                    value={adminCatDesc}
+                    onChange={(e) => setAdminCatDesc(e.target.value)}
+                    placeholder="e.g. Baby gears, outdoor playgrounds, building blocks"
+                    className="w-full bg-white border border-gray-250 rounded px-2.5 py-2 text-xs font-semibold focus:ring-1 focus:ring-[#7c3aed] focus:outline-none placeholder-gray-300 text-gray-800"
+                  />
+                </div>
+
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="block text-[9.5px] font-black text-[#7c3aed] uppercase">Subcategories list (Comma-separated)</label>
+                    <span className="text-[9px] text-gray-400 font-bold">Recommended</span>
+                  </div>
+                  <input
+                    type="text"
+                    value={adminCatSubs}
+                    onChange={(e) => setAdminCatSubs(e.target.value)}
+                    placeholder="e.g. Women's Fashion, Men's Fashion, Shoes, Bags, Accessories, Watches, High Glass"
+                    className="w-full bg-white border border-gray-250 rounded px-2.5 py-2.5 text-xs font-semibold focus:ring-1 focus:ring-[#7c3aed] focus:outline-none placeholder-gray-300 text-gray-800 shadow-2xs"
+                  />
+                  <p className="text-[9.5px] text-gray-400 leading-snug mt-1 font-medium">Input subcategories separated by commas. These will automatically appear as beautiful filters under the storefront rows & when adding products!</p>
+                </div>
+
+                <div className="flex justify-end gap-2.5 pt-2 font-sans">
+                  {adminSelectedCatId && (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenCategoryManager()}
+                      className="px-4 py-2 border border-gray-200 text-gray-500 rounded text-xs font-bold hover:bg-gray-50 transition cursor-pointer"
+                    >
+                      Clear Selection
+                    </button>
+                  )}
+                  <button
+                    type="submit"
+                    disabled={catSaving}
+                    className="px-5 py-2 bg-[#7c3aed] hover:bg-[#6d28d9] disabled:opacity-50 text-white rounded text-xs font-black uppercase tracking-wider transition shadow-sm cursor-pointer"
+                  >
+                    {catSaving ? 'Saving...' : adminSelectedCatId ? '💾 Save Changes' : '➕ Invent Department'}
+                  </button>
+                </div>
+
+              </form>
+
             </div>
           </div>
         </div>

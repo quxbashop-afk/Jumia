@@ -401,7 +401,7 @@ export default function ProductDetailModal({
                   <label className="block text-[9px] font-black text-gray-400 uppercase tracking-wider mb-1">Display Name</label>
                   <input 
                     type="text"
-                    placeholder="e.g. Kola Adesina"
+                    placeholder="e.g. John Coaster"
                     value={reviewName}
                     onChange={(e) => setReviewName(e.target.value)}
                     className="w-full bg-white border border-gray-200 rounded px-2.5 py-1.5 text-xs font-semibold focus:outline-none focus:border-[#7c3aed]"

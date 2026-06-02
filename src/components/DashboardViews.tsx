@@ -8,6 +8,7 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Toolti
 import { Product, Order, SupportMessage, CartItem, ProductOption, ProductVariant, Advertisement } from '../types';
 import { db, OperationType, handleFirestoreError } from '../firebase';
 import { collection, onSnapshot, query, orderBy, setDoc, doc, deleteDoc } from 'firebase/firestore';
+import quxbaLogo from '../assets/images/quxba_logo_1780098066924.png';
 
 
 // Client-side image compression utility to fit Firestore 1MB document limitations
@@ -61,6 +62,7 @@ interface SellerDashboardProps {
   products: Product[];
   onAddNewProduct: (p: Product) => void;
   onDeleteProduct: (id: string) => void;
+  categories?: any[];
 }
 
 const resolveBgGradient = (color: string) => {
@@ -88,14 +90,27 @@ const resolveBgGradient = (color: string) => {
   }
 };
 
-export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct }: SellerDashboardProps) {
+export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct, categories = [] }: SellerDashboardProps) {
   const [activeTab, setActiveTab] = useState<'catalog' | 'adverts'>('catalog');
   const [vendorName] = useState('Supreme Appliances Ltd');
   const [newProdName, setNewProdName] = useState('');
   const [newProdCategory, setNewProdCategory] = useState('Fashion & Apparel');
+  const [newProdSubcategory, setNewProdSubcategory] = useState('');
   const [newProdPrice, setNewProdPrice] = useState('');
   const [newProdOldPrice, setNewProdOldPrice] = useState('');
   const [newProdDiscount, setNewProdDiscount] = useState('0');
+
+  // Sync / clear subcategory if category changes and it is no longer valid
+  useEffect(() => {
+    const currentCatDetails = categories.find(c => c.name === newProdCategory);
+    if (currentCatDetails && currentCatDetails.subcategories && currentCatDetails.subcategories.length > 0) {
+      if (!currentCatDetails.subcategories.includes(newProdSubcategory)) {
+        setNewProdSubcategory('');
+      }
+    } else {
+      setNewProdSubcategory('');
+    }
+  }, [newProdCategory, categories]);
 
   // Real-time automatic discount helper updating 'Discount' automatically as user types a new Sale Price against Original Price
   useEffect(() => {
@@ -304,6 +319,7 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct }: 
     setEditingProductId(null);
     setNewProdName('');
     setNewProdCategory('Fashion & Apparel');
+    setNewProdSubcategory('');
     setNewProdPrice('');
     setNewProdOldPrice('');
     setNewProdDesc('');
@@ -349,6 +365,7 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct }: 
     setEditingProductId(p.id);
     setNewProdName(p.name);
     setNewProdCategory(p.category);
+    setNewProdSubcategory(p.specifications?.['Subcategory'] || (p as any).subcategory || '');
     setNewProdPrice(String(p.price));
     setNewProdOldPrice(p.originalPrice ? String(p.originalPrice) : '');
     setNewProdDesc(p.description || '');
@@ -527,11 +544,13 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct }: 
         'Weight': `${inventoryWeight} lbs`,
         'Dimensions': `${inventoryLength} x ${inventoryWidth} x ${inventoryHeight} in`,
         'Addons Included': selectedAddons.length > 0 ? selectedAddons.map(a => a.replace('-', ' ')).join(', ') : 'None',
-        'Featured': isFeatured ? 'Yes' : 'No'
+        'Featured': isFeatured ? 'Yes' : 'No',
+        'Subcategory': newProdSubcategory
       },
       options: productOptions,
       variants: productVariants
     };
+    (newProduct as any).subcategory = newProdSubcategory;
 
     setIsSubmitting(true);
     setFormSuccess('');
@@ -994,12 +1013,9 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct }: 
                           className="w-full bg-white border border-neutral-300 rounded p-2 text-xs font-medium focus:outline-none focus:border-[#7c3aed]"
                         >
                           <option>All Categories</option>
-                          <option>Electronics & Appliances</option>
-                          <option>Phones & Tablets</option>
-                          <option>Computers & Accessories</option>
-                          <option>Fashion & Apparel</option>
-                          <option>Supermarket & Groceries</option>
-                          <option>Health & Beauty</option>
+                          {categories.map((cat: any) => (
+                            <option key={cat.id || cat.name}>{cat.name}</option>
+                          ))}
                         </select>
                       </div>
 
@@ -2054,13 +2070,33 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct }: 
                     onChange={(e) => setNewProdCategory(e.target.value)}
                     className="w-full bg-white border border-gray-250 rounded px-2.5 py-2 text-xs focus:ring-1 focus:ring-black focus:outline-none font-semibold text-neutral-800"
                   >
-                    <option>Fashion & Apparel</option>
-                    <option>Electronics & Appliances</option>
-                    <option>Phones & Tablets</option>
-                    <option>Computers & Accessories</option>
-                    <option>Supermarket & Groceries</option>
-                    <option>Health & Beauty</option>
+                    {categories.map((cat: any) => (
+                      <option key={cat.id || cat.name} value={cat.name}>{cat.name}</option>
+                    ))}
                   </select>
+
+                  {/* Subcategory select dropdown when category has subcategories */}
+                  {(() => {
+                    const currentCatDetails = categories.find(c => c.name === newProdCategory);
+                    if (currentCatDetails && currentCatDetails.subcategories && currentCatDetails.subcategories.length > 0) {
+                      return (
+                        <div className="mt-3 animate-fade-in">
+                          <label className="block text-[9.5px] font-black text-[#7c3aed] uppercase mb-1.5">Product Subcategory (Recommended)</label>
+                          <select
+                            value={newProdSubcategory}
+                            onChange={(e) => setNewProdSubcategory(e.target.value)}
+                            className="w-full bg-white border border-[#7c3aed]/40 rounded px-2.5 py-2 text-xs focus:ring-1 focus:ring-[#7c3aed] focus:outline-none font-semibold text-neutral-800"
+                          >
+                            <option value="">Choose subcategory...</option>
+                            {currentCatDetails.subcategories.map((sub: string) => (
+                              <option key={sub} value={sub}>{sub}</option>
+                            ))}
+                          </select>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
               </div>
 
@@ -2308,12 +2344,9 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct }: 
                               onChange={(e) => setProductAdCategory(e.target.value)}
                               className="w-full bg-white border border-gray-250 p-2 text-xs font-semibold rounded focus:outline-none focus:ring-1 focus:ring-black text-neutral-800 text-[11px]"
                             >
-                              <option>Fashion & Apparel</option>
-                              <option>Electronics & Appliances</option>
-                              <option>Phones & Tablets</option>
-                              <option>Computers & Accessories</option>
-                              <option>Supermarket & Groceries</option>
-                              <option>Health & Beauty</option>
+                              {categories.map((cat: any) => (
+                                <option key={cat.id || cat.name} value={cat.name}>{cat.name}</option>
+                              ))}
                             </select>
                           </div>
 
@@ -3199,9 +3232,16 @@ export function CustomerSupportChat() {
       
       {/* Help header */}
       <div className="bg-[#7c3aed] text-white p-4 flex items-center gap-3">
-        <div className="bg-white text-[#7c3aed] rounded-full p-2 font-bold text-sm">👩‍💻</div>
+        <div className="bg-white p-1 rounded-full overflow-hidden w-10 h-10 flex-shrink-0 flex items-center justify-center border border-purple-200">
+          <img 
+            src={quxbaLogo} 
+            alt="Quxba Logo" 
+            className="w-full h-full object-contain rounded-full"
+            referrerPolicy="no-referrer"
+          />
+        </div>
         <div>
-          <h3 className="font-extrabold text-sm tracking-tight">Quxba Anniversary Help Desk</h3>
+          <h3 className="font-extrabold text-sm tracking-tight font-sans text-white">Quxba Help Desk</h3>
           <p className="text-[10px] text-purple-100 flex items-center gap-1">
             <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
             Active · Powered by Google Gemini with Real-time Search Grounding
@@ -3214,42 +3254,70 @@ export function CustomerSupportChat() {
         {messages.map((m) => (
           <div 
             key={m.id}
-            className={`flex flex-col max-w-[85%] ${m.sender === 'user' ? 'ml-auto items-end' : 'items-start'}`}
+            className={`flex gap-2.5 max-w-[90%] ${m.sender === 'user' ? 'ml-auto flex-row-reverse items-end' : 'items-start'}`}
           >
-            <div 
-              className={`rounded-lg px-3.5 py-2 text-xs md:text-sm leading-relaxed ${
-                m.sender === 'user' 
-                  ? 'bg-[#7c3aed] text-white rounded-tr-none' 
-                  : 'bg-white text-gray-800 border border-gray-200 rounded-tl-none shadow-xs'
-              }`}
-            >
-              {m.text}
+            {m.sender === 'agent' && (
+              <div className="w-8 h-8 rounded-full bg-white border border-purple-100 p-0.5 flex-shrink-0 flex items-center justify-center shadow-2xs">
+                <img 
+                  src={quxbaLogo} 
+                  alt="Quxba Support Logo" 
+                  className="w-full h-full object-contain rounded-full" 
+                  referrerPolicy="no-referrer"
+                />
+              </div>
+            )}
+            {m.sender === 'user' && (
+              <div className="w-8 h-8 rounded-full bg-purple-100 flex-shrink-0 flex items-center justify-center text-xs font-black text-[#7c3aed] shadow-2xs">
+                👤
+              </div>
+            )}
+            <div className={`flex flex-col ${m.sender === 'user' ? 'items-end' : 'items-start'}`}>
+              <div 
+                className={`rounded-lg px-3.5 py-2 text-xs md:text-sm leading-relaxed ${
+                  m.sender === 'user' 
+                    ? 'bg-[#7c3aed] text-white rounded-tr-none' 
+                    : 'bg-white text-gray-800 border border-gray-200 rounded-tl-none shadow-xs'
+                }`}
+              >
+                {m.text}
 
-              {/* Grounded Web Citations display */}
-              {m.citations && m.citations.length > 0 && (
-                <div className="mt-2.5 pt-2 border-t border-gray-100 space-y-1">
-                  <span className="block text-[8.5px] font-black tracking-widest text-[#7c3aed] uppercase">Google Search Verified Sources:</span>
-                  <div className="flex flex-wrap gap-1.5 mt-1">
-                    {m.citations.slice(0, 3).map((cit, cIdx) => (
-                      <a
-                        key={cIdx}
-                        href={cit.uri}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 bg-[#7c3aed]/5 hover:bg-[#7c3aed]/10 text-[#7c3aed] border border-purple-100 hover:border-purple-200 text-[10px] font-bold px-2 py-0.5 rounded transition no-referrer whitespace-nowrap max-w-[180px] truncate"
-                      >
-                        🌐 {cit.title}
-                      </a>
-                    ))}
+                {/* Grounded Web Citations display */}
+                {m.citations && m.citations.length > 0 && (
+                  <div className="mt-2.5 pt-2 border-t border-gray-100 space-y-1">
+                    <span className="block text-[8.5px] font-black tracking-widest text-[#7c3aed] uppercase flex items-center gap-1">
+                      <img src={quxbaLogo} alt="" className="w-3.5 h-3.5 object-contain rounded-full" referrerPolicy="no-referrer" />
+                      Google Search Verified Sources:
+                    </span>
+                    <div className="flex flex-wrap gap-1.5 mt-1">
+                      {m.citations.slice(0, 3).map((cit, cIdx) => (
+                        <a
+                          key={cIdx}
+                          href={cit.uri}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 bg-[#7c3aed]/5 hover:bg-[#7c3aed]/10 text-[#7c3aed] border border-purple-100 hover:border-purple-200 text-[10px] font-bold px-2 py-0.5 rounded transition no-referrer whitespace-nowrap max-w-[180px] truncate"
+                        >
+                          🌐 {cit.title}
+                        </a>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
+              <span className="text-[9px] text-gray-400 mt-1 uppercase font-semibold font-mono">{m.timestamp}</span>
             </div>
-            <span className="text-[9px] text-gray-400 mt-1 uppercase font-semibold font-mono">{m.timestamp}</span>
           </div>
         ))}
         {isTyping && (
-          <div className="flex flex-col items-start max-w-[85%] mr-auto">
+          <div className="flex gap-2.5 items-start max-w-[85%] mr-auto">
+            <div className="w-8 h-8 rounded-full bg-white border border-purple-150 p-0.5 flex-shrink-0 flex items-center justify-center animate-bounce shadow-2xs">
+              <img 
+                src={quxbaLogo} 
+                alt="Quxba Support Logo" 
+                className="w-full h-full object-contain rounded-full" 
+                referrerPolicy="no-referrer"
+              />
+            </div>
             <div className="rounded-lg px-3.5 py-2.5 text-xs text-purple-700 bg-purple-50/80 border border-purple-100 flex items-center gap-1.5 rounded-tl-none animate-pulse">
               <RefreshCw className="w-3 h-3 animate-spin text-[#7c3aed]" />
               <span className="font-semibold">Searching Google & fact-checking news...</span>
