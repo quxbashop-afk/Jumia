@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { LogOut, Search, ShoppingCart, Heart, User, ChevronDown, Package, Smartphone, Percent, Settings, ShieldAlert, BadgeHelp, ClipboardList } from 'lucide-react';
 import { CartItem, Product, UserAccount } from '../types';
-import quxbaLogo from '../assets/images/quxba_logo_1780098066924.png';
+import quxbaLogo from '../assets/images/quxba_app_logo_1780449558383.png';
 
 interface HeaderProps {
   cart: CartItem[];
