@@ -211,11 +211,11 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct, ca
   
   const sortedProducts = [...myProducts].sort((a, b) => {
     if (sortBy === 'name') {
-      const nameA = a.name.toLowerCase();
-      const nameB = b.name.toLowerCase();
+      const nameA = (a.name || '').toLowerCase();
+      const nameB = (b.name || '').toLowerCase();
       return sortOrder === 'asc' ? nameA.localeCompare(nameB) : nameB.localeCompare(nameA);
     } else if (sortBy === 'price') {
-      return sortOrder === 'asc' ? a.price - b.price : b.price - a.price;
+      return sortOrder === 'asc' ? (a.price || 0) - (b.price || 0) : (b.price || 0) - (a.price || 0);
     }
     return 0;
   });

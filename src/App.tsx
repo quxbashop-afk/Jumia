@@ -57,7 +57,7 @@ import {
 
 export default function App() {
   // Syncing States to Client-Side Local Storage & Firebase Firestore
-  const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
+  const [products, setProducts] = useState<Product[]>([]);
 
   const DEFAULT_CATEGORIES = [
     {
@@ -147,9 +147,12 @@ export default function App() {
       } else {
         const catList: any[] = [];
         snapshot.forEach((snap) => {
-          catList.push(snap.data());
+          const data = snap.data();
+          if (data && typeof data.name === 'string') {
+            catList.push(data);
+          }
         });
-        catList.sort((a, b) => a.name.localeCompare(b.name));
+        catList.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
         setCategories(catList);
         localStorage.setItem('quxba_local_categories', JSON.stringify(catList));
       }
@@ -285,24 +288,7 @@ export default function App() {
     const ref = collection(db, 'products');
     const unsubscribe = onSnapshot(ref, async (snapshot) => {
       if (snapshot.empty) {
-        setProducts(INITIAL_PRODUCTS);
-        // Only the admin authenticated via Firebase can seed the database
-        const authMethod = localStorage.getItem('jumia_auth_method');
-        if (currentUser?.email === 'quxbashop@gmail.com' && authMethod === 'firebase' && auth.currentUser) {
-          try {
-            // Auto seed database with products
-            for (const item of INITIAL_PRODUCTS) {
-              const docRef = doc(db, 'products', item.id);
-              await setDoc(docRef, {
-                ...item,
-                isApproved: item.isApproved !== undefined ? item.isApproved : true,
-                createdAt: item.createdAt || Date.now()
-              });
-            }
-          } catch (error) {
-            console.warn("Auto seed of products skipped or failed (local fallback products loaded):", error);
-          }
-        }
+        setProducts([]);
       } else {
         const prodList: Product[] = [];
         snapshot.forEach((snap) => {
@@ -658,13 +644,18 @@ export default function App() {
   // Drawer / overlay triggers
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isWishlistOpen, setIsWishlistOpen] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(() => {
-    const savedId = localStorage.getItem('quxba_selected_product_id');
-    if (savedId) {
-      return INITIAL_PRODUCTS.find(p => p.id === savedId) || null;
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+
+  useEffect(() => {
+    if (!selectedProduct) {
+      const savedId = localStorage.getItem('quxba_selected_product_id');
+      if (savedId && products.length > 0) {
+        const found = products.find(p => p.id === savedId);
+        if (found) setSelectedProduct(found);
+      }
     }
-    return null;
-  });
+  }, [products, selectedProduct]);
+
   const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
 
   useEffect(() => {
@@ -974,13 +965,7 @@ export default function App() {
   };
 
   // Only show approved products on public customer storefront
-  // If a product was not added/approved by the admin (i.e. not in INITIAL_PRODUCTS and not marked admin-added), filter it out
-  const publicProducts = products.filter((p) => {
-    if (!p.isApproved) return false;
-    const isInitial = INITIAL_PRODUCTS.some((item) => item.id === p.id);
-    const isAdminAdded = p.addedByAdmin === true || p.sellerId === 'vendor-self' || p.sellerName === 'Supreme Appliances Ltd';
-    return isInitial || isAdminAdded;
-  });
+  const publicProducts = products.filter((p) => p.isApproved);
 
   const filteredProducts = publicProducts.filter((product) => {
     const matchesCategory =
