@@ -63,6 +63,7 @@ interface SellerDashboardProps {
   onAddNewProduct: (p: Product) => void;
   onDeleteProduct: (id: string) => void;
   categories?: any[];
+  onQuotaExceeded?: () => void;
 }
 
 const resolveBgGradient = (color: string) => {
@@ -90,7 +91,7 @@ const resolveBgGradient = (color: string) => {
   }
 };
 
-export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct, categories = [] }: SellerDashboardProps) {
+export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct, categories = [], onQuotaExceeded }: SellerDashboardProps) {
   const [activeTab, setActiveTab] = useState<'catalog' | 'adverts'>('catalog');
   const [vendorName] = useState('Supreme Appliances Ltd');
   const [newProdName, setNewProdName] = useState('');
@@ -648,7 +649,11 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct, ca
       });
       setAdverts(ads);
     }, (err) => {
-      console.error("Firestore subscription error for SellerDashboard:", err);
+      console.warn("Firestore subscription warning for SellerDashboard (offline/quota fallback active):", err);
+      const strErr = (err && (err.message || err.code || String(err))) || '';
+      if ((strErr.toLowerCase().includes('quota') || strErr.toLowerCase().includes('exhausted')) && onQuotaExceeded) {
+        onQuotaExceeded();
+      }
     });
     return () => unsubscribe();
   }, []);

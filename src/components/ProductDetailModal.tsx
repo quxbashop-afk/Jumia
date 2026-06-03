@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Heart, Star, ShoppingCart, ShieldCheck, Truck, RefreshCcw, Percent, Loader2 } from 'lucide-react';
+import { X, Heart, Star, ShoppingCart, ShieldCheck, Truck, RefreshCcw, Percent, Loader2, Trash2 } from 'lucide-react';
 import { Product } from '../types';
 
 interface ProductDetailModalProps {
@@ -10,6 +10,7 @@ interface ProductDetailModalProps {
   isInWishlist: boolean;
   onAddReview?: (productId: string, rating: number, comment: string, userName: string) => Promise<void>;
   currentUser?: { name: string; email: string } | null;
+  onDeleteProduct?: (productId: string) => void;
 }
 
 export default function ProductDetailModal({
@@ -19,11 +20,10 @@ export default function ProductDetailModal({
   onToggleWishlist,
   isInWishlist,
   onAddReview,
-  currentUser
+  currentUser,
+  onDeleteProduct
 }: ProductDetailModalProps) {
-  if (!product) return null;
-
-  const [activeImage, setActiveImage] = React.useState<string>(product.imageUrl);
+  const [activeImage, setActiveImage] = React.useState<string>(product ? product.imageUrl : '');
   const [zoomPos, setZoomPos] = React.useState({ x: 0, y: 0 });
   const [isZoomed, setIsZoomed] = React.useState(false);
 
@@ -44,9 +44,6 @@ export default function ProductDetailModal({
              Object.keys(o2).every((k) => o1[k] === o2[k]);
     });
   }, [product, selectedOptions]);
-
-  const displayPrice = currentVariant ? currentVariant.price : product.price;
-  const displayStock = currentVariant ? currentVariant.stock : product.stock;
 
   React.useEffect(() => {
     if (product) {
@@ -73,6 +70,11 @@ export default function ProductDetailModal({
       setReviewName('');
     }
   }, [currentUser]);
+
+  if (!product) return null;
+
+  const displayPrice = currentVariant ? currentVariant.price : product.price;
+  const displayStock = currentVariant ? currentVariant.stock : product.stock;
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     const { left, top, width, height } = e.currentTarget.getBoundingClientRect();
@@ -337,6 +339,25 @@ export default function ProductDetailModal({
                <Heart className={`w-5 h-5 ${isInWishlist ? 'fill-red-500 text-red-500' : ''}`} />
             </button>
           </div>
+
+          {/* Admin Direct Deletion Control */}
+          {currentUser?.email === 'quxbashop@gmail.com' && onDeleteProduct && (
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm(`Are you sure you want to delete "${product.name}"? This action cannot be undone.`)) {
+                    onDeleteProduct(product.id);
+                    onClose();
+                  }
+                }}
+                className="w-full bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 py-3 rounded-lg text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer transition active:scale-98"
+              >
+                <Trash2 className="w-4 h-4 text-red-600 animate-pulse" />
+                <span>Delete This Catalog Product</span>
+              </button>
+            </div>
+          )}
 
           {/* Customer Reviews & Feedback Block */}
           <div className="border-t border-gray-100 pt-5 mt-5 space-y-4 text-left">

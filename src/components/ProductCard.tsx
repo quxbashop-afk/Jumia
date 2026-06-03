@@ -1,5 +1,5 @@
 import React from 'react';
-import { Heart, Star, Share2, Eye } from 'lucide-react';
+import { Heart, Star, Share2, Eye, Trash2 } from 'lucide-react';
 import { Product } from '../types';
 
 interface ProductCardProps {
@@ -9,6 +9,8 @@ interface ProductCardProps {
   onToggleWishlist: (p: Product) => void;
   onClick: (p: Product) => void;
   onQuickView: (p: Product) => void;
+  currentUser?: any;
+  onDeleteProduct?: (productId: string) => void;
   key?: React.Key;
 }
 
@@ -18,7 +20,9 @@ export default function ProductCard({
   onAddToCart,
   onToggleWishlist,
   onClick,
-  onQuickView
+  onQuickView,
+  currentUser,
+  onDeleteProduct
 }: ProductCardProps) {
   // Format price in Nigerian Naira
   const formatNaira = (amount: number) => {
@@ -44,6 +48,23 @@ export default function ProductCard({
       className="group bg-white rounded-md border border-gray-100 hover:border-purple-200 hover:shadow-md transition-all duration-300 flex flex-col overflow-hidden relative p-2 sm:p-2.5"
       id={`product-card-${product.id}`}
     >
+      {/* Admin Direct Delete Button overlaid on ProductCard */}
+      {currentUser?.email === 'quxbashop@gmail.com' && onDeleteProduct && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (window.confirm(`Are you sure you want to delete "${product.name}"? This is irreversible.`)) {
+              onDeleteProduct(product.id);
+            }
+          }}
+          className="absolute top-2.5 left-2.5 bg-red-50 hover:bg-red-100 text-red-650 p-1.5 rounded-full z-25 shadow-md border border-red-200 transition duration-150 active:scale-90 cursor-pointer"
+          title="Delete Product"
+          id={`delete-card-btn-${product.id}`}
+        >
+          <Trash2 className="w-3.5 h-3.5 text-red-600 font-bold" />
+        </button>
+      )}
       {/* Top badges bar over image */}
       <div className="absolute top-2 left-2 right-2 z-10 flex items-center justify-between pointer-events-none">
         {/* Non-returnable badge */}

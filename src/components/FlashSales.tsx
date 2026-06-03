@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Trash2 } from 'lucide-react';
 import { Product } from '../types';
 
 interface FlashSalesProps {
@@ -9,6 +10,8 @@ interface FlashSalesProps {
   onSelectProduct: (p: Product) => void;
   title?: string;
   type?: 'flash' | 'weekend' | 'new' | 'discount';
+  currentUser?: any;
+  onDeleteProduct?: (productId: string) => void;
 }
 
 export default function FlashSales({
@@ -18,7 +21,9 @@ export default function FlashSales({
   onToggleWishlist,
   onSelectProduct,
   title = 'FLASH SALES',
-  type = 'flash'
+  type = 'flash',
+  currentUser,
+  onDeleteProduct
 }: FlashSalesProps) {
   // Static 4 hours target timer from component mount
   const [timeLeft, setTimeLeft] = useState(14400); // 4 hours in seconds
@@ -187,6 +192,24 @@ export default function FlashSales({
                 onClick={() => onSelectProduct(product)}
                 className="w-[135px] sm:w-[165px] bg-white rounded-lg p-2.5 flex flex-col justify-between flex-shrink-0 snap-start relative shadow-md hover:shadow-xl transition-all duration-300 cursor-pointer group"
               >
+                {/* Admin Direct Delete button overlaid on card in FlashSales */}
+                {currentUser?.email === 'quxbashop@gmail.com' && onDeleteProduct && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (window.confirm(`Are you sure you want to delete "${product.name}"? This is irreversible.`)) {
+                        onDeleteProduct(product.id);
+                      }
+                    }}
+                    className="absolute top-1.5 left-1.5 bg-red-50 hover:bg-red-100 text-red-650 p-1.5 rounded-full z-20 shadow-md border border-red-200 transition duration-150 active:scale-90 cursor-pointer"
+                    title="Delete Product"
+                    id={`delete-btn-${product.id}`}
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-red-600 font-bold" />
+                  </button>
+                )}
+
                 {/* Brand label & logo header */}
                 <div className="flex items-start justify-between gap-1 mb-1 pointer-events-none select-none min-h-[16px]">
                   <div className="flex flex-col">

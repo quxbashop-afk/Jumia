@@ -44,6 +44,8 @@ export interface Product {
   }>;
   options?: ProductOption[];
   variants?: ProductVariant[];
+  source?: string;
+  adminId?: string;
 }
 
 export interface CartItem {

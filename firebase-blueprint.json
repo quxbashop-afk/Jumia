@@ -21,9 +21,11 @@
         "isFlashSale": { "type": "boolean" },
         "isApproved": { "type": "boolean" },
         "brand": { "type": "string" },
-        "createdAt": { "type": "number" }
+        "createdAt": { "type": "number" },
+        "source": { "type": "string" },
+        "adminId": { "type": "string" }
       },
-      "required": ["id", "name", "category", "price", "originalPrice", "discount", "imageUrl", "rating", "reviewsCount", "description", "stock", "sellerId", "sellerName"]
+      "required": ["id", "name", "category", "price", "originalPrice", "discount", "imageUrl", "rating", "reviewsCount", "description", "stock", "sellerId", "sellerName", "source", "adminId"]
     },
     "Order": {
       "title": "Order",

@@ -52,7 +52,9 @@ service cloud.firestore {
              data.description is string && data.description.size() <= 10000 &&
              data.stock is number && data.stock >= 0 &&
              data.sellerId is string && data.sellerId.size() <= 128 &&
-             data.sellerName is string && data.sellerName.size() <= 256;
+             data.sellerName is string && data.sellerName.size() <= 256 &&
+             data.source is string && data.source.size() <= 64 &&
+             data.adminId is string && data.adminId.size() <= 128;
     }
 
     // 3. Order Validation
@@ -98,13 +100,27 @@ service cloud.firestore {
       // Anyone can read products count and list
       allow get, list: if true;
 
-      // Anyone (admin, seller, guest, local) can create a validated product
-      allow create: if isValidId(productId) && isValidProduct(incoming()) && (incoming().createdAt is number);
+      // Create: validate product structure and ensure write auth boundaries are respected
+      allow create: if isValidId(productId) && isValidProduct(incoming()) && (incoming().createdAt is number) && (
+        isAdmin() ||
+        (isSignedIn() && incoming().adminId == request.auth.token.email) ||
+        (!isSignedIn() && incoming().adminId == "guest")
+      );
 
-      // Anyone can update/delete products with proper structural validation
-      allow update: if isValidId(productId) && isValidProduct(incoming());
+      // Update: only allow the Admin, or the authenticated creator matching adminId, with strictly immutable source/adminId
+      allow update: if isValidId(productId) && isValidProduct(incoming()) && (
+        incoming().adminId == existing().adminId &&
+        incoming().source == existing().source && (
+          isAdmin() ||
+          (isSignedIn() && existing().adminId == request.auth.token.email)
+        )
+      );
 
-      allow delete: if isValidId(productId);
+      // Delete: only allow the Admin, or the authenticated creator matching adminId
+      allow delete: if isValidId(productId) && (
+        isAdmin() ||
+        (isSignedIn() && existing().adminId == request.auth.token.email)
+      );
     }
 
     // --- Orders Collection ---
