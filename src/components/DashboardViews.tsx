@@ -8,7 +8,7 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Toolti
 import { Product, Order, SupportMessage, CartItem, ProductOption, ProductVariant, Advertisement } from '../types';
 import { db, OperationType, handleFirestoreError } from '../firebase';
 import { collection, onSnapshot, query, orderBy, setDoc, doc, deleteDoc } from 'firebase/firestore';
-import quxbaLogo from '../assets/images/quxba_logo_1780098066924.png';
+import quxbaLogo from '../assets/images/quxba_app_logo_1780449558383.png';
 
 
 // Client-side image compression utility to fit Firestore 1MB document limitations

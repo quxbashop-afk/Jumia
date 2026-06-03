@@ -20,9 +20,10 @@ import {
   CustomerSupportChat 
 } from './components/DashboardViews';
 import { AdminStorefrontPortal } from './components/AdminStorefrontPortal';
+import { DailyDealCountdown } from './components/DailyDealCountdown';
 
 import { INITIAL_PRODUCTS } from './data/products';
-import quxbaLogo from './assets/images/quxba_logo_1780098066924.png';
+import quxbaLogo from './assets/images/quxba_app_logo_1780449558383.png';
 import quxbaBlocksBanner from './assets/images/quxba_blocks_banner_1780389199277.png';
 import { Product, CartItem, Order, UserAccount } from './types';
 import { 
@@ -1154,6 +1155,15 @@ export default function App() {
                 }}
               />
             )}
+            
+            {/* Elegant Daily Deal Countdown at the top of storefront */}
+            <DailyDealCountdown
+              products={publicProducts}
+              wishlist={wishlist}
+              onAddToCart={handleAddToCart}
+              onToggleWishlist={handleToggleWishlist}
+              onSelectProduct={(p) => setSelectedProduct(p)}
+            />
             
             {/* Upper layouts: Category tree panel & Hero Slider */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
