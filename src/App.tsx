@@ -41,7 +41,8 @@ import {
   signOut, 
   onAuthStateChanged,
   signInWithPopup,
-  GoogleAuthProvider
+  GoogleAuthProvider,
+  updateProfile
 } from 'firebase/auth';
 import { 
   doc, 
@@ -135,6 +136,7 @@ export default function App() {
   useEffect(() => {
     const ref = collection(db, 'categories');
     const unsubscribe = onSnapshot(ref, async (snapshot) => {
+      setFirestoreQuotaExceeded(false);
       if (snapshot.empty) {
         setCategories(DEFAULT_CATEGORIES);
         try {
@@ -261,7 +263,21 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         const email = firebaseUser.email || '';
-        const name = firebaseUser.displayName || email.split('@')[0] || 'User';
+        let name = firebaseUser.displayName || '';
+        if (!name) {
+          try {
+            const saved = localStorage.getItem('jumia_logged_in_user');
+            if (saved) {
+              const parsed = JSON.parse(saved);
+              if (parsed && parsed.email?.toLowerCase() === email.toLowerCase() && parsed.name) {
+                name = parsed.name;
+              }
+            }
+          } catch (e) {}
+        }
+        if (!name) {
+          name = email.split('@')[0] || 'User';
+        }
         const u = { email, name };
         setCurrentUser(u);
         localStorage.setItem('jumia_logged_in_user', JSON.stringify(u));
@@ -370,6 +386,7 @@ export default function App() {
     }
 
     unsubscribe = onSnapshot(q, (snapshot) => {
+      setFirestoreQuotaExceeded(false);
       processSnapshot(snapshot, queryDesc);
       
       const prodList: Product[] = [];
@@ -406,6 +423,7 @@ export default function App() {
       : query(collectionRef, where('customerEmail', '==', currentUser.email));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
+      setFirestoreQuotaExceeded(false);
       const ordersList: Order[] = [];
       snapshot.forEach((snap) => {
         ordersList.push(snap.data() as Order);
@@ -462,11 +480,16 @@ export default function App() {
     const email = emailStr.toLowerCase().trim();
     try {
       // 1. Try Firebase Authentication
-      await signInWithEmailAndPassword(auth, email, passStr);
+      const result = await signInWithEmailAndPassword(auth, email, passStr);
+      const displayName = result.user.displayName || email.split('@')[0] || 'User';
       localStorage.setItem('jumia_auth_method', 'firebase');
+      const u = { email, name: displayName };
+      setCurrentUser(u);
+      localStorage.setItem('jumia_logged_in_user', JSON.stringify(u));
       setShowAuthModal(false);
       setAuthError('');
       setAuthPassword('');
+      addToast('Welcome Back', `Logged in successfully as ${displayName}!`, 'info');
       return { success: true };
     } catch (err: any) {
       console.warn("Firebase sign-in failed, checking safe local fallback:", err);
@@ -481,7 +504,10 @@ export default function App() {
         
         // Silently attempt to register with Firebase in the background in case Firebase database is recovering
         try {
-          await createUserWithEmailAndPassword(auth, email, passStr);
+          const result = await createUserWithEmailAndPassword(auth, email, passStr);
+          try {
+            await updateProfile(result.user, { displayName: localUser.name });
+          } catch (pErr) {}
         } catch (sErr) {
           console.warn("Silent Firebase sync registration skipped:", sErr);
         }
@@ -489,6 +515,7 @@ export default function App() {
         setShowAuthModal(false);
         setAuthError('');
         setAuthPassword('');
+        addToast('Welcome Back', `Logged in in offline mode as ${localUser.name}!`, 'info');
         return { success: true };
       }
       
@@ -512,9 +539,19 @@ export default function App() {
     try {
       // 1. Try register with Firebase Authentication
       const result = await createUserWithEmailAndPassword(auth, email, passStr);
+      try {
+        await updateProfile(result.user, { displayName: nameStr });
+      } catch (profErr) {
+        console.warn("Could not update Firebase profile displayName:", profErr);
+      }
+
       setRegisteredUsers(newUsers);
       localStorage.setItem('jumia_registered_users', JSON.stringify(newUsers));
       localStorage.setItem('jumia_auth_method', 'firebase');
+
+      const u = { email, name: nameStr };
+      setCurrentUser(u);
+      localStorage.setItem('jumia_logged_in_user', JSON.stringify(u));
 
       try {
         await setDoc(doc(db, 'users', result.user.uid), {
@@ -529,6 +566,7 @@ export default function App() {
       setAuthError('');
       setAuthPassword('');
       setAuthName('');
+      addToast('Registration Successful', `Welcome to Quxba, ${nameStr}!`, 'info');
       return { success: true };
     } catch (err: any) {
       console.warn("Firebase sign-up failed, running local robust fallback registration:", err);
@@ -552,6 +590,7 @@ export default function App() {
       setAuthError('');
       setAuthPassword('');
       setAuthName('');
+      addToast('Welcome to Quxba!', `Registered in offline mode as ${nameStr}.`, 'info');
       return { success: true };
     }
   };
