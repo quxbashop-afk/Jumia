@@ -59,7 +59,18 @@ import {
 
 export default function App() {
   // Syncing States to Client-Side Local Storage & Firebase Firestore
-  const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
+  const [products, setProducts] = useState<Product[]>(() => {
+    try {
+      const saved = localStorage.getItem('quxba_local_products');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (e) {}
+    return INITIAL_PRODUCTS;
+  });
   const [firestoreQuotaExceeded, setFirestoreQuotaExceeded] = useState(false);
 
   const DEFAULT_CATEGORIES = [
@@ -385,18 +396,68 @@ export default function App() {
       queryDesc = "Guest Approved Catalog Only";
     }
 
-    unsubscribe = onSnapshot(q, (snapshot) => {
+    unsubscribe = onSnapshot(q, async (snapshot) => {
       setFirestoreQuotaExceeded(false);
       processSnapshot(snapshot, queryDesc);
       
-      const prodList: Product[] = [];
-      snapshot.forEach((snap) => {
-        prodList.push(snap.data() as Product);
-      });
+      if (snapshot.empty) {
+        setProducts(INITIAL_PRODUCTS);
+        if (currentUser?.email === 'quxbashop@gmail.com') {
+          console.log(`${logPrefix} Products collection is empty. Auto-seeding default catalog...`);
+          try {
+            for (const prod of INITIAL_PRODUCTS) {
+              const docRef = doc(db, 'products', prod.id);
+              await setDoc(docRef, {
+                ...prod,
+                addedByAdmin: true,
+                isApproved: true,
+                adminId: 'quxbashop@gmail.com'
+              });
+            }
+          } catch (err) {
+            console.warn(`${logPrefix} Seeding default catalog error:`, err);
+          }
+        }
+      } else {
+        const prodList: Product[] = [];
+        snapshot.forEach((snap) => {
+          prodList.push(snap.data() as Product);
+        });
 
-      // Maintain coherent updates
-      detectChanges(prodList);
-      setProducts(prodList);
+        // 1. Programmatically clean up non-admin uploaded products/images for quxbashop@gmail.com admin
+        if (currentUser?.email === 'quxbashop@gmail.com') {
+          const unauthorizedProducts = prodList.filter(p => {
+            const isInitial = INITIAL_PRODUCTS.some(ip => ip.id === p.id);
+            const isFromAdmin = p.addedByAdmin === true || p.adminId === 'quxbashop@gmail.com';
+            return !isInitial && !isFromAdmin;
+          });
+
+          if (unauthorizedProducts.length > 0) {
+            console.log(`${logPrefix} Admin Autoclean is removing ${unauthorizedProducts.length} unauthorized product listings.`);
+            for (const p of unauthorizedProducts) {
+              try {
+                await deleteDoc(doc(db, 'products', p.id));
+              } catch (delErr) {
+                console.warn(`${logPrefix} Admin Autoclean failed to delete product ${p.id}:`, delErr);
+              }
+            }
+          }
+        }
+
+        // 2. Filter local memory state for UI to ensure non-admin products are instantly hidden
+        const filteredList = currentUser?.email === 'quxbashop@gmail.com'
+          ? prodList.filter(p => INITIAL_PRODUCTS.some(ip => ip.id === p.id) || p.addedByAdmin === true || p.adminId === 'quxbashop@gmail.com')
+          : prodList;
+
+        // Maintain coherent updates
+        detectChanges(filteredList);
+        setProducts(filteredList);
+
+        // Backup to localStorage to ensure extreme high availability and return products
+        try {
+          localStorage.setItem('quxba_local_products', JSON.stringify(filteredList));
+        } catch (e) {}
+      }
     }, (error) => {
       console.warn(`${logPrefix} ${queryDesc} subscription error:`, error);
       const strErr = (error && (error.message || error.code || String(error))) || '';

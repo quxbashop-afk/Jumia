@@ -83,6 +83,15 @@ service cloud.firestore {
              data.createdAt is number;
     }
 
+    // 5. Category Validation
+    function isValidCategory(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 128 &&
+             data.desc is string && data.desc.size() <= 1000 &&
+             data.emoji is string && data.emoji.size() <= 32 &&
+             (!('subcategories' in data) || (data.subcategories is list && data.subcategories.size() <= 50));
+    }
+
     // Global Safety Net default catch-all
     match /{document=**} {
       allow read, write: if false;
@@ -136,13 +145,15 @@ service cloud.firestore {
     // --- Adverts Collection ---
     match /adverts/{advertId} {
       allow get, list: if true;
-      allow create, update: if isValidId(advertId) && isValidAdvert(incoming());
-      allow delete: if isValidId(advertId);
+      allow create, update: if isValidId(advertId) && isValidAdvert(incoming()) && isAdmin();
+      allow delete: if isValidId(advertId) && isAdmin();
     }
 
     // --- Categories Collection ---
     match /categories/{categoryId} {
-      allow read, write: if true;
+      allow get, list: if true;
+      allow create, update: if isValidId(categoryId) && isValidCategory(incoming()) && isAdmin();
+      allow delete: if isValidId(categoryId) && isAdmin();
     }
   }
 }

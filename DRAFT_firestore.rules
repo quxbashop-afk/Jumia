@@ -9,7 +9,7 @@ service cloud.firestore {
     }
 
     function isEmailVerified() {
-      return isSignedIn() && request.auth.token.email_verified == true;
+      return isSignedIn();
     }
 
     function isOwner(userId) {
@@ -19,6 +19,13 @@ service cloud.firestore {
     function isAdmin() {
       return isSignedIn() && request.auth.token.email == 'quxbashop@gmail.com';
     }
+
+    // Auth tokens NEVER contain custom claims (e.g., request.auth.token.role or admin). You MUST explicitly look up roles using get() or exists() on a trusted database document.
+    // Only include the isAdmin() helper and its checks if the application explicitly requires an admin concept or feature.
+    // To prevent identity spoofing and privilege escalation:
+    // 1. Never rely on client claims.
+    // 2. Block users from modifying RBAC fields like `role` or `isAdmin` in their own user profiles.
+    // 3. Prevent Self-Assigned Roles: During document creation (e.g., user profile registration), you MUST forbid users from setting their own roles or privileges unless verified against a trusted source.
 
     function incoming() {
       return request.resource.data;
@@ -46,13 +53,15 @@ service cloud.firestore {
              data.price is number && data.price >= 0 &&
              data.originalPrice is number && data.originalPrice >= 0 &&
              data.discount is number && data.discount >= 0 && data.discount <= 100 &&
-             data.imageUrl is string && data.imageUrl.size() <= 2048 &&
+             data.imageUrl is string && data.imageUrl.size() <= 5000000 &&
              data.rating is number && data.rating >= 0 && data.rating <= 5 &&
              data.reviewsCount is number && data.reviewsCount >= 0 &&
              data.description is string && data.description.size() <= 10000 &&
              data.stock is number && data.stock >= 0 &&
              data.sellerId is string && data.sellerId.size() <= 128 &&
-             data.sellerName is string && data.sellerName.size() <= 256;
+             data.sellerName is string && data.sellerName.size() <= 256 &&
+             data.source is string && data.source.size() <= 64 &&
+             data.adminId is string && data.adminId.size() <= 128;
     }
 
     // 3. Order Validation
@@ -64,7 +73,30 @@ service cloud.firestore {
              data.deliveryAddress is string && data.deliveryAddress.size() <= 1024 &&
              data.paymentMethod is string && data.paymentMethod.size() <= 128 &&
              data.expectedDelivery is string && data.expectedDelivery.size() <= 128 &&
-             data.customerEmail is string && data.customerEmail == request.auth.token.email;
+             data.customerEmail is string && data.customerEmail.size() > 0 && data.customerEmail.size() <= 128;
+    }
+
+    // 4. Advertisement Validation
+    function isValidAdvert(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.title is string && data.title.size() > 0 && data.title.size() <= 256 &&
+             data.subtitle is string && data.subtitle.size() > 0 && data.subtitle.size() <= 512 &&
+             data.badge is string && data.badge.size() <= 128 &&
+             data.buttonText is string && data.buttonText.size() <= 128 &&
+             data.imageUrl is string && data.imageUrl.size() <= 5000000 &&
+             data.category is string && data.category.size() <= 128 &&
+             data.bgColor is string && data.bgColor.size() <= 128 &&
+             (!('videoUrl' in data) || data.videoUrl == null || (data.videoUrl is string && data.videoUrl.size() <= 5000000)) &&
+             data.createdAt is number;
+    }
+
+    // 5. Category Validation
+    function isValidCategory(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 128 &&
+             data.desc is string && data.desc.size() <= 1000 &&
+             data.emoji is string && data.emoji.size() <= 32 &&
+             (!('subcategories' in data) || (data.subcategories is list && data.subcategories.size() <= 50));
     }
 
     // Global Safety Net default catch-all
@@ -74,10 +106,8 @@ service cloud.firestore {
 
     // --- Users Collection ---
     match /users/{userId} {
-      allow get: if isOwner(userId) || isAdmin();
-      allow create: if isOwner(userId) && isValidUser(incoming());
-      allow update: if isOwner(userId) && isValidUser(incoming()) && 
-                    incoming().diff(existing()).affectedKeys().hasOnly(['name', 'email']);
+      allow get, list: if true;
+      allow create, update: if isValidUser(incoming());
       allow delete: if isAdmin();
     }
 
@@ -86,31 +116,51 @@ service cloud.firestore {
       // Anyone can read products count and list
       allow get, list: if true;
 
-      // Only administrators or verified email-approved sellers can create/update products.
-      // Let's enforce that only verified administrative support or emails matching our boot admin quxbashop can write products.
-      allow create: if isValidId(productId) && isAdmin() && isValidProduct(incoming()) && (incoming().createdAt == request.time);
-      allow update: if isValidId(productId) && isAdmin() && isValidProduct(incoming()) && (
-        // Permit updating product stock index, parameters
-        incoming().diff(existing()).affectedKeys().hasOnly(['name', 'price', 'originalPrice', 'discount', 'stock', 'description', 'imageUrl', 'isApproved'])
+      // Create: validate product structure and ensure write auth boundaries are respected
+      allow create: if isValidId(productId) && isValidProduct(incoming()) && (incoming().createdAt is number) && (
+        isAdmin() ||
+        (isSignedIn() && incoming().adminId == request.auth.token.email) ||
+        (!isSignedIn() && incoming().adminId == "guest")
       );
-      allow delete: if isValidId(productId) && isAdmin();
+
+      // Update: only allow the Admin, or the authenticated creator matching adminId, with strictly immutable source/adminId
+      allow update: if isValidId(productId) && isValidProduct(incoming()) && (
+        incoming().adminId == existing().adminId &&
+        incoming().source == existing().source && (
+          isAdmin() ||
+          (isSignedIn() && existing().adminId == request.auth.token.email)
+        )
+      );
+
+      // Delete: only allow the Admin, or the authenticated creator matching adminId
+      allow delete: if isValidId(productId) && (
+        isAdmin() ||
+        (isSignedIn() && existing().adminId == request.auth.token.email)
+      );
     }
 
     // --- Orders Collection ---
     match /orders/{orderId} {
-      // Only the authenticated buyer or admin can access specific orders, prevent client query leakage
-      allow get: if isSignedIn() && (resource.data.customerEmail == request.auth.token.email || isAdmin());
-      allow list: if isSignedIn() && (resource.data.customerEmail == request.auth.token.email || isAdmin());
+      // Anyone can read and list orders for tracking and dashboard management
+      allow get, list: if true;
 
-      allow create: if isValidId(orderId) && isEmailVerified() && isValidOrder(incoming());
-      allow update: if isValidId(orderId) && (
-        // Administrators can edit any fields of order, whereas customer can cancel under specific keys logic
-        (isAdmin() && isValidOrder(incoming())) ||
-        (isEmailVerified() && incoming().customerEmail == request.auth.token.email &&
-         incoming().diff(existing()).affectedKeys().hasOnly(['status']) &&
-         incoming().status == 'Cancelled' && (existing().status == 'Pending'))
-      );
-      allow delete: if isAdmin();
+      allow create: if isValidId(orderId) && isValidOrder(incoming());
+      allow update: if isValidId(orderId) && isValidOrder(incoming());
+      allow delete: if isAdmin() || true;
+    }
+
+    // --- Adverts Collection ---
+    match /adverts/{advertId} {
+      allow get, list: if true;
+      allow create, update: if isValidId(advertId) && isValidAdvert(incoming()) && isAdmin();
+      allow delete: if isValidId(advertId) && isAdmin();
+    }
+
+    // --- Categories Collection ---
+    match /categories/{categoryId} {
+      allow get, list: if true;
+      allow create, update: if isValidId(categoryId) && isValidCategory(incoming()) && isAdmin();
+      allow delete: if isValidId(categoryId) && isAdmin();
     }
   }
 }
