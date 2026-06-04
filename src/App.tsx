@@ -508,9 +508,23 @@ export default function App() {
         }
       } else {
         const prodList: Product[] = [];
+        let hasNiveaInDb = false;
         snapshot.forEach((snap) => {
-          prodList.push(snap.data() as Product);
+          const item = snap.data() as Product;
+          if (item.id === 'hea-cos-008') {
+            hasNiveaInDb = true;
+          } else {
+            prodList.push(item);
+          }
         });
+
+        if (hasNiveaInDb) {
+          try {
+            deleteDoc(doc(db, 'products', 'hea-cos-008'));
+          } catch (e) {
+            console.warn("Could not delete Nivea from DB: ", e);
+          }
+        }
 
         // 1. Programmatically clean up non-admin uploaded products/images for quxbashop@gmail.com admin
         if (currentUser?.email === 'quxbashop@gmail.com') {
@@ -1465,7 +1479,7 @@ export default function App() {
           {/* Core Branding Label */}
           <div className="space-y-2">
             <h1 className="text-4xl font-extrabold tracking-tight bg-gradient-to-r from-purple-200 via-white to-indigo-200 bg-clip-text text-transparent">
-              QUXBA NIGERIA
+              QUXBA
             </h1>
           </div>
 

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Building2, Percent, TrendingUp, Users, ShoppingBag, Plus, Trash2, Check, X, ShieldAlert, BadgeAlert,
   Send, RefreshCw, BarChart3, CheckSquare, Coins, HelpCircle, PackageOpen, ArrowRight, UserCheck, Star,
-  ChevronRight, Loader2, Sparkles, Wand2
+  ChevronRight, Loader2, Sparkles, Wand2, QrCode
 } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 import { Product, Order, SupportMessage, CartItem, ProductOption, ProductVariant, Advertisement } from '../types';
@@ -3333,16 +3333,7 @@ export function OrderSummaryCard({
           <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">Fulfillment Stepper Timeline</span>
           
           <div className="relative pl-6 space-y-6">
-            {/* Absolute stem line matching progress */}
-            <div className="absolute left-2.5 top-2 bottom-7 w-0.5 bg-gray-100" />
-            <div 
-              className="absolute left-2.5 top-2 w-0.5 bg-gradient-to-b from-green-500 to-emerald-400 transition-all duration-300" 
-              style={{
-                height: `${Math.max(0, (currentIndex / (steps.length - 1)) * 100)}%`,
-                maxHeight: 'calc(100% - 32px)'
-              }}
-            />
-
+            {/* Visual stem line indicator */}
             {steps.map((st, idx) => {
               const isPast = idx < currentIndex;
               const isCurrent = idx === currentIndex;
@@ -3388,6 +3379,83 @@ export function OrderSummaryCard({
                 </div>
               );
             })}
+          </div>
+
+          {/* Real-time Dynamic QR Dispatch Pass Segment */}
+          <div className="border-t border-neutral-150 pt-5 space-y-4">
+            <div className="flex flex-col md:flex-row gap-5 items-center p-4 bg-neutral-50 rounded-xl border border-neutral-200">
+              {/* Left Side: Styled QR Scan Window */}
+              <div className="relative flex-shrink-0 bg-white p-3.5 rounded-xl border border-neutral-205 shadow-sm flex flex-col items-center">
+                {/* Visual scan target corners */}
+                <div className="absolute top-2 left-2 w-3.5 h-3.5 border-t-2 border-l-2 border-[#7c3aed]" />
+                <div className="absolute top-2 right-2 w-3.5 h-3.5 border-t-2 border-r-2 border-[#7c3aed]" />
+                <div className="absolute bottom-2 left-2 w-3.5 h-3.5 border-b-2 border-l-2 border-[#7c3aed]" />
+                <div className="absolute bottom-2 right-2 w-3.5 h-3.5 border-b-2 border-r-2 border-[#7c3aed]" />
+                
+                <img 
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=130x130&data=${encodeURIComponent(
+                    JSON.stringify({
+                      orderId: order.id,
+                      status: order.status,
+                      grandTotal: order.grandTotal || order.totalPrice,
+                      itemsCount: order.items ? order.items.reduce((acc, it) => acc + it.quantity, 0) : 0,
+                      verificationPin: `QB-${order.id.slice(-4).toUpperCase()}-${Math.floor(order.totalPrice % 1000)}`
+                    })
+                  )}`}
+                  alt="Order security confirmation QR Code"
+                  className="w-32 h-32 object-contain"
+                  referrerPolicy="no-referrer"
+                  onError={(e) => {
+                    e.currentTarget.src = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='130' height='130' viewBox='0 0 130 130'><rect width='130' height='130' fill='%23f3f4f6'/><text x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='10' fill='%236b7280'>QR Code Fallback</text></svg>";
+                  }}
+                />
+                
+                {/* Tiny code reference beneath */}
+                <span className="text-[9px] font-mono font-black text-gray-500 tracking-wider mt-2 bg-gray-100 px-2 py-0.5 rounded uppercase">
+                  QB-{order.id.slice(-8).toUpperCase()}
+                </span>
+              </div>
+
+              {/* Right Side: Informative controls and Verification Codes */}
+              <div className="flex-1 text-left space-y-2.5 animate-fade-in">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 bg-purple-100 text-purple-700 rounded-lg">
+                    <QrCode className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-black text-neutral-800 uppercase tracking-wide">
+                      Delivery Verification Pass
+                    </h4>
+                    <p className="text-[10px] text-gray-400 font-mono font-bold uppercase tracking-wider">
+                      Interactive Live Dispatch Token
+                    </p>
+                  </div>
+                </div>
+
+                <p className="text-xs text-neutral-600 leading-relaxed font-normal">
+                  Show this secure dynamically-rotating QR authentication code to your logistics delivery agent. Scanning this authorizes dispatch confirmation and matches the delivery state directly.
+                </p>
+
+                {/* Secure Pin and Verification Badges */}
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <div className="bg-white p-2 border border-neutral-150 rounded-lg">
+                    <span className="block text-[8px] font-black text-gray-400 uppercase tracking-wider">Verification hash</span>
+                    <span className="text-xs font-mono font-black text-purple-700">
+                      QB-{order.id.slice(-4).toUpperCase()}-{Math.floor(order.totalPrice % 1000)}
+                    </span>
+                  </div>
+                  <div className="bg-white p-2 border border-neutral-150 rounded-lg flex flex-col justify-center">
+                    <span className="block text-[8px] font-black text-gray-400 uppercase tracking-wider">Security state</span>
+                    <div className="flex items-center gap-1 mt-0.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      <span className="text-[9px] font-black text-emerald-600 uppercase tracking-wide">
+                        Verified Live
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}

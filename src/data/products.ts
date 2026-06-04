@@ -275,31 +275,6 @@ export const INITIAL_PRODUCTS: Product[] = [
       'Type': '100% Soya & Vegetable Extract',
       'Packaging': 'Ergonomic Plastic Canister'
     }
-  },
-  {
-    id: 'hea-cos-008',
-    name: 'Nivea Perfect & Radiant Luminous 630 Daily Fluid SPF50',
-    category: 'Health & Beauty',
-    price: 18900,
-    originalPrice: 24000,
-    discount: 21,
-    imageUrl: 'https://images.unsplash.com/photo-1608248597279-f99d160bfcbc?auto=format&fit=crop&w=600&q=80',
-    rating: 4.7,
-    reviewsCount: 142,
-    description: 'Protect and glow day after day under the African sun. Break through dark spots with Niveas patented Luminous 630 formula combined with highest SPF50 UVA and UVB safeguards.',
-    stock: 80,
-    sellerId: 'sell-beauty-bar',
-    sellerName: 'Nivea Official Mall',
-    isFlashSale: false,
-    isApproved: true,
-    brand: 'Nivea',
-    createdAt: 1717300000000,
-    specifications: {
-      'Skin Type': 'All Skin Types',
-      'Sunscreen Factor': 'SPF 50 Protection',
-      'Key Ingredient': 'Luminous 630 & Hyaluronic Acid',
-      'Volume': '40ml'
-    }
   }
 ];
 
