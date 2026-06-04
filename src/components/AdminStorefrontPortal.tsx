@@ -60,6 +60,15 @@ export function AdminStorefrontPortal({
   const [prodIsFlash, setProdIsFlash] = useState(false);
   const [prodIsFeatured, setProdIsFeatured] = useState(false);
 
+  // Quick administration inline states
+  const [showQuickAddCat, setShowQuickAddCat] = useState(false);
+  const [quickCatName, setQuickCatName] = useState('');
+  const [quickCatEmoji, setQuickCatEmoji] = useState('📦');
+  const [showQuickAddSub, setShowQuickAddSub] = useState(false);
+  const [quickSubName, setQuickSubName] = useState('');
+  const [showEditSubs, setShowEditSubs] = useState(false);
+  const [editSubsCsv, setEditSubsCsv] = useState('');
+
   // Status logs
   const [errorText, setErrorText] = useState('');
   const [successText, setSuccessText] = useState('');
@@ -211,9 +220,119 @@ export function AdminStorefrontPortal({
     }
   };
 
+  const handleQuickAddCategory = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!quickCatName.trim()) {
+      setErrorText('Please specify a Department Name.');
+      return;
+    }
+    setIsSubmitting(true);
+    setErrorText('');
+    setSuccessText('');
+
+    const targetId = quickCatName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const dataObj = {
+      id: targetId,
+      name: quickCatName.trim(),
+      emoji: quickCatEmoji.trim(),
+      desc: `${quickCatName.trim()} section`,
+      subcategories: []
+    };
+
+    const isOk = await onSaveCategory(dataObj);
+    if (isOk) {
+      setSuccessText(`Added department "${quickCatName}" and auto-selected!`);
+      setProdCategory(quickCatName.trim());
+      setQuickCatName('');
+      setShowQuickAddCat(false);
+    } else {
+      setErrorText('Failed to add section.');
+    }
+    setIsSubmitting(false);
+  };
+
+  const handleQuickAddSubcategory = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!activeCategoryDetails) {
+      setErrorText('Please choose a Target Department first.');
+      return;
+    }
+    if (!quickSubName.trim()) {
+      setErrorText('Please specify a Subcategory Name.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setErrorText('');
+    setSuccessText('');
+
+    const existingSubs = activeCategoryDetails.subcategories || [];
+    if (existingSubs.includes(quickSubName.trim())) {
+      setErrorText(`Subcategory "${quickSubName}" already exists!`);
+      setIsSubmitting(false);
+      return;
+    }
+
+    const updatedCatObj = {
+      ...activeCategoryDetails,
+      subcategories: [...existingSubs, quickSubName.trim()]
+    };
+
+    const isOk = await onSaveCategory(updatedCatObj);
+    if (isOk) {
+      setSuccessText(`Added subcategory "${quickSubName}" and auto-selected!`);
+      setProdSubcategory(quickSubName.trim());
+      setQuickSubName('');
+      setShowQuickAddSub(false);
+    } else {
+      setErrorText('Failed to insert subcategory.');
+    }
+    setIsSubmitting(false);
+  };
+
+  const handleQuickSaveEditSubcategories = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!activeCategoryDetails) {
+      setErrorText('Please choose a Target Department first.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setErrorText('');
+    setSuccessText('');
+
+    const subList = editSubsCsv
+      .split(',')
+      .map(s => s.trim())
+      .filter(s => s.length > 0);
+
+    const updatedCatObj = {
+      ...activeCategoryDetails,
+      subcategories: subList
+    };
+
+    const isOk = await onSaveCategory(updatedCatObj);
+    if (isOk) {
+      setSuccessText(`Successfully updated subcategories for department "${activeCategoryDetails.name}"!`);
+      setShowEditSubs(false);
+    } else {
+      setErrorText('Error saving subcategories adjustment.');
+    }
+    setIsSubmitting(false);
+  };
+
   // Get active category's subcategories
   const activeCategoryDetails = categories.find(c => c.name === prodCategory);
   const activeSubcategories = activeCategoryDetails?.subcategories || [];
+
+  // Synchronize the edit subcategories CSV string when selected category changes
+  useEffect(() => {
+    if (activeCategoryDetails) {
+      setEditSubsCsv(activeCategoryDetails.subcategories ? activeCategoryDetails.subcategories.join(', ') : '');
+    } else {
+      setEditSubsCsv('');
+    }
+  }, [prodCategory, categories]);
 
   return (
     <div className="bg-white border-2 border-dashed border-purple-300 rounded-2xl p-5 mb-8 shadow-sm font-sans animate-fade-in relative text-left">
@@ -443,7 +562,20 @@ export function AdminStorefrontPortal({
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* Department drop */}
                 <div>
-                  <label className="block text-[9px] font-black text-gray-500 uppercase tracking-wider mb-1">Target Department *</label>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="block text-[9px] font-black text-gray-500 uppercase tracking-wider">Target Department *</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowQuickAddCat(!showQuickAddCat);
+                        setShowQuickAddSub(false);
+                        setShowEditSubs(false);
+                      }}
+                      className="text-[9.5px] font-black text-[#7c3aed] hover:text-[#6d28d9] uppercase tracking-wide cursor-pointer focus:outline-none flex items-center gap-1"
+                    >
+                      {showQuickAddCat ? '✕ Cancel' : '➕ Add Dept'}
+                    </button>
+                  </div>
                   <div className="relative">
                     <select
                       value={prodCategory}
@@ -462,11 +594,69 @@ export function AdminStorefrontPortal({
                       <Layers className="w-3.5 h-3.5" />
                     </div>
                   </div>
+
+                  {/* Quick Add Category inline popup drawer */}
+                  {showQuickAddCat && (
+                    <div className="mt-2 text-[11px] p-3 bg-fuchsia-50/70 rounded-xl border border-fuchsia-250 space-y-2 animate-fade-in shadow-2xs text-left">
+                      <div className="text-[9px] font-black uppercase text-fuchsia-950 tracking-wider">
+                        ⚡ Quick Add Store Department
+                      </div>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        <input
+                          type="text"
+                          value={quickCatEmoji}
+                          onChange={(e) => setQuickCatEmoji(e.target.value)}
+                          placeholder="💄"
+                          className="w-full text-center bg-white border border-gray-200 rounded-lg p-1 text-xs font-bold focus:outline-none text-gray-800"
+                        />
+                        <input
+                          type="text"
+                          value={quickCatName}
+                          onChange={(e) => setQuickCatName(e.target.value)}
+                          placeholder="e.g. Health & Beauty"
+                          className="col-span-2 w-full bg-white border border-gray-200 rounded-lg p-1 text-xs font-semibold focus:outline-none text-gray-800"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleQuickAddCategory}
+                        className="w-full py-1 bg-fuchsia-700 hover:bg-fuchsia-800 text-white rounded-md text-[9px] uppercase font-black tracking-wider transition cursor-pointer"
+                      >
+                        Create Dept
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Subcategory */}
                 <div>
-                  <label className="block text-[9px] font-black text-gray-500 uppercase tracking-wider mb-1">Subcategory Filter *</label>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="block text-[9px] font-black text-gray-500 uppercase tracking-wider">Subcategory Filter *</label>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowQuickAddSub(!showQuickAddSub);
+                          setShowQuickAddCat(false);
+                          setShowEditSubs(false);
+                        }}
+                        className="text-[9.5px] font-black text-[#7c3aed] hover:text-[#6d28d9] uppercase tracking-wide cursor-pointer focus:outline-none flex items-center gap-0.5"
+                      >
+                        {showQuickAddSub ? '✕ Close' : '➕ Sub'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowEditSubs(!showEditSubs);
+                          setShowQuickAddCat(false);
+                          setShowQuickAddSub(false);
+                        }}
+                        className="text-[9.5px] font-black text-orange-600 hover:text-orange-700 uppercase tracking-wide cursor-pointer focus:outline-none flex items-center gap-0.5"
+                      >
+                        {showEditSubs ? '✕ Close' : '✏️ Edit'}
+                      </button>
+                    </div>
+                  </div>
                   {activeSubcategories.length > 0 ? (
                     <div className="relative">
                       <select
@@ -491,6 +681,52 @@ export function AdminStorefrontPortal({
                       placeholder="e.g. Sound Systems"
                       className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-purple-300 focus:outline-none text-gray-800"
                     />
+                  )}
+
+                  {/* Inline quick add subcategory */}
+                  {showQuickAddSub && (
+                    <div className="mt-2 text-[11px] p-3 bg-purple-50 rounded-xl border border-purple-100 space-y-2 animate-fade-in shadow-2xs text-left">
+                      <div className="text-[9px] font-black uppercase text-purple-950 tracking-wider">
+                        ⚡ Quick Add Subcategory to {prodCategory}
+                      </div>
+                      <input
+                        type="text"
+                        value={quickSubName}
+                        onChange={(e) => setQuickSubName(e.target.value)}
+                        placeholder="Subcategory Name (e.g. Skincare)"
+                        className="w-full bg-white border border-gray-200 rounded-lg p-1 text-xs font-semibold focus:outline-none text-gray-800"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleQuickAddSubcategory}
+                        className="w-full py-1 bg-[#7c3aed] hover:bg-[#6d28d9] text-white rounded-md text-[9px] uppercase font-black tracking-wider transition cursor-pointer"
+                      >
+                        Add Subcategory
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Inline Edit subcategories as CSV list */}
+                  {showEditSubs && (
+                    <div className="mt-2 text-[11px] p-3 bg-amber-50 rounded-xl border border-amber-200 space-y-2 animate-fade-in shadow-2xs text-left">
+                      <div className="text-[9px] font-black uppercase text-amber-950 tracking-wider">
+                        ✏️ Edit Subcategories List in {prodCategory}
+                      </div>
+                      <textarea
+                        rows={2}
+                        value={editSubsCsv}
+                        onChange={(e) => setEditSubsCsv(e.target.value)}
+                        placeholder="Comma-separated: Earbuds, Headphones, Chargers"
+                        className="w-full bg-white border border-gray-200 rounded-lg p-1.5 text-[11px] font-semibold focus:outline-none text-gray-800 leading-normal"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleQuickSaveEditSubcategories}
+                        className="w-full py-1 bg-amber-700 hover:bg-amber-800 text-white rounded-md text-[9px] uppercase font-black tracking-wider transition cursor-pointer"
+                      >
+                        Save Subcategories List
+                      </button>
+                    </div>
                   )}
                 </div>
 

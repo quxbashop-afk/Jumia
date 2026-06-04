@@ -1674,9 +1674,8 @@ export default function App() {
             </div>
 
             {/* Shortcut categories promo line (Sleek Theme Circular Grid) */}
-            <div className="grid grid-cols-3 sm:grid-cols-6 gap-4 animate-fade-in" id="shortcut-cards">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 animate-fade-in" id="shortcut-cards">
               {[
-                { label: 'Flash Sales', emoji: '🔥', imgUrl: 'https://images.unsplash.com/photo-1563013544-824ae1d704d3?auto=format&fit=crop&w=400&q=80', action: () => { setSelectedCategory('All Categories'); setTimeout(() => { document.getElementById('quxba-flash-sales')?.scrollIntoView({ behavior: 'smooth' }); }, 150); }, bg: 'bg-purple-100' },
                 { label: 'Free Delivery', emoji: '🚚', imgUrl: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=400&q=80', action: () => { setSelectedCategory('Supermarket & Groceries'); }, bg: 'bg-blue-100' },
                 { label: 'Supermarket', emoji: '🍏', action: () => { setSelectedCategory('Supermarket & Groceries'); }, bg: 'bg-green-100' },
                 { label: 'Phone Deals', emoji: '📱', action: () => { setSelectedCategory('Phones & Tablets'); }, bg: 'bg-red-100' },
