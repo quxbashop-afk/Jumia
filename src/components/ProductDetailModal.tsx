@@ -346,14 +346,12 @@ export default function ProductDetailModal({
               <button
                 type="button"
                 onClick={() => {
-                  if (window.confirm(`Are you sure you want to delete "${product.name}"? This action cannot be undone.`)) {
-                    onDeleteProduct(product.id);
-                    onClose();
-                  }
+                  onDeleteProduct(product.id);
+                  onClose();
                 }}
-                className="w-full bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 py-3 rounded-lg text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer transition active:scale-98"
+                className="w-full bg-red-50 hover:bg-red-650 hover:text-white text-red-650 border border-red-200 py-3 rounded-lg text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer transition-all duration-200 active:scale-98 hover:scale-101 hover:shadow-md"
               >
-                <Trash2 className="w-4 h-4 text-red-600 animate-pulse" />
+                <Trash2 className="w-4 h-4 animate-pulse" />
                 <span>Delete This Catalog Product</span>
               </button>
             </div>

@@ -35,6 +35,18 @@ import {
 
 // Firebase Integrations
 import { auth, db, OperationType, handleFirestoreError } from './firebase';
+
+// Supabase Integrations
+import { 
+  isSupabaseEnabled, 
+  supabase, 
+  supabaseSignIn, 
+  supabaseSignUp, 
+  supabaseSignOut, 
+  supabaseGetProducts, 
+  supabaseAddProduct, 
+  supabaseGetCategories 
+} from './supabase';
 import { 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
@@ -72,6 +84,7 @@ export default function App() {
     return INITIAL_PRODUCTS;
   });
   const [firestoreQuotaExceeded, setFirestoreQuotaExceeded] = useState(false);
+  const [productToConfirmDelete, setProductToConfirmDelete] = useState<Product | null>(null);
 
   const DEFAULT_CATEGORIES = [
     {
@@ -145,6 +158,40 @@ export default function App() {
 
   // Categories realtime syncing
   useEffect(() => {
+    if (isSupabaseEnabled) {
+      const fetchSupabaseCategories = async () => {
+        try {
+          const catList = await supabaseGetCategories();
+          if (catList && catList.length > 0) {
+            setCategories(catList);
+            localStorage.setItem('quxba_local_categories', JSON.stringify(catList));
+          } else {
+            setCategories(DEFAULT_CATEGORIES);
+          }
+        } catch (e) {
+          console.warn("Supabase fetch categories error:", e);
+          setCategories(DEFAULT_CATEGORIES);
+        }
+      };
+
+      fetchSupabaseCategories();
+
+      const channel = supabase
+        .channel('categories-realtime')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'categories' },
+          () => {
+            fetchSupabaseCategories();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+
     const ref = collection(db, 'categories');
     const unsubscribe = onSnapshot(ref, async (snapshot) => {
       setFirestoreQuotaExceeded(false);
@@ -357,6 +404,47 @@ export default function App() {
       prevProductsRef.current = newProds;
     };
 
+    if (isSupabaseEnabled) {
+      const fetchSupabaseProducts = async () => {
+        try {
+          const prodList = await supabaseGetProducts();
+          if (prodList && prodList.length > 0) {
+            const formatted = prodList.map((p: any) => ({
+              ...p,
+              createdAt: p.created_at ? new Date(p.created_at).getTime() : Date.now(),
+            }));
+            detectChanges(formatted);
+            setProducts(formatted);
+            try {
+              localStorage.setItem('quxba_local_products', JSON.stringify(formatted));
+            } catch (e) {}
+          } else {
+            setProducts(INITIAL_PRODUCTS);
+          }
+        } catch (e) {
+          console.warn("Supabase products load issue:", e);
+          setProducts(INITIAL_PRODUCTS);
+        }
+      };
+
+      fetchSupabaseProducts();
+
+      const channel = supabase
+        .channel('products-realtime')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'products' },
+          () => {
+            fetchSupabaseProducts();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+
     const processSnapshot = (snapshot: any, queryType: string) => {
       const timestamp = new Date().toISOString();
       const source = snapshot.metadata.fromCache ? 'Local Cache' : 'Server';
@@ -539,6 +627,26 @@ export default function App() {
 
   const handleLogin = async (emailStr: string, passStr: string) => {
     const email = emailStr.toLowerCase().trim();
+    
+    // 0. Try Supabase Authentication first if configured
+    if (isSupabaseEnabled) {
+      try {
+        const { user } = await supabaseSignIn(email, passStr) as any;
+        const displayName = user?.user_metadata?.display_name || user?.user_metadata?.full_name || email.split('@')[0] || 'User';
+        localStorage.setItem('jumia_auth_method', 'supabase');
+        const u = { email, name: displayName };
+        setCurrentUser(u);
+        localStorage.setItem('jumia_logged_in_user', JSON.stringify(u));
+        setShowAuthModal(false);
+        setAuthError('');
+        setAuthPassword('');
+        addToast('Welcome Back', `Logged in via Supabase as ${displayName}!`, 'info');
+        return { success: true };
+      } catch (err: any) {
+        console.warn("Supabase auth login failed, checking fallback:", err);
+      }
+    }
+
     try {
       // 1. Try Firebase Authentication
       const result = await signInWithEmailAndPassword(auth, email, passStr);
@@ -596,6 +704,31 @@ export default function App() {
       ...registeredUsers,
       [email]: { name: nameStr, email, pass: passStr }
     };
+
+    // 0. Try registration with Supabase if configured
+    if (isSupabaseEnabled) {
+      try {
+        const { user } = await supabaseSignUp(email, passStr, nameStr) as any;
+        setRegisteredUsers(newUsers);
+        localStorage.setItem('jumia_registered_users', JSON.stringify(newUsers));
+        localStorage.setItem('jumia_auth_method', 'supabase');
+
+        const u = { email, name: nameStr };
+        setCurrentUser(u);
+        localStorage.setItem('jumia_logged_in_user', JSON.stringify(u));
+
+        setShowAuthModal(false);
+        setAuthError('');
+        setAuthPassword('');
+        setAuthName('');
+        addToast('Registration Successful', `Welcome to Quxba via Supabase, ${nameStr}!`, 'info');
+        return { success: true };
+      } catch (err: any) {
+        console.warn("Supabase registration failed:", err);
+        setAuthError(err.message || 'Supabase signup failed.');
+        return { success: false };
+      }
+    }
 
     try {
       // 1. Try register with Firebase Authentication
@@ -658,7 +791,11 @@ export default function App() {
 
   const handleLogout = async () => {
     try {
-      await signOut(auth);
+      if (isSupabaseEnabled) {
+        await supabaseSignOut();
+      } else {
+        await signOut(auth);
+      }
     } catch (err) {
       console.error(err);
     }
@@ -1153,24 +1290,49 @@ export default function App() {
     });
     addToast('Product Added', `"${sanitizedProduct.name}" was successfully registered offline as a listing.`, 'info');
 
-    try {
-      // Direct write to unique secure path. Firestore's onSnapshot handles optimistic local updates instantly
-      await setDoc(doc(db, 'products', sanitizedProduct.id), sanitizedProduct);
-    } catch (error) {
-      console.warn("Firestore product set skipped or pending offline sync (quota limits):", error);
+    if (isSupabaseEnabled) {
+      try {
+        await supabaseAddProduct(sanitizedProduct);
+      } catch (error) {
+        console.warn("Supabase product insert failed:", error);
+      }
+    } else {
+      try {
+        // Direct write to unique secure path. Firestore's onSnapshot handles optimistic local updates instantly
+        await setDoc(doc(db, 'products', sanitizedProduct.id), sanitizedProduct);
+      } catch (error) {
+        console.warn("Firestore product set skipped or pending offline sync (quota limits):", error);
+      }
     }
   };
 
-  const handleDeleteProduct = async (productId: string) => {
+  const handleDeleteProduct = (productId: string) => {
+    const prod = products.find(p => p.id === productId);
+    if (prod) {
+      setProductToConfirmDelete(prod);
+    } else {
+      executeDeleteProduct(productId);
+    }
+  };
+
+  const executeDeleteProduct = async (productId: string) => {
     // 1. Optimistic Local State Deletion (high-availability safeguard)
     setProducts(prev => prev.filter(p => p.id !== productId));
     addToast('Product Deleted', 'The catalog item was successfully removed.', 'info');
 
-    try {
-      // 2. Database Synchronization
-      await deleteDoc(doc(db, 'products', productId));
-    } catch (error) {
-      console.warn("Firestore product deletion skipped or pending offline sync:", error);
+    if (isSupabaseEnabled) {
+      try {
+        await supabase.from('products').delete().eq('id', productId);
+      } catch (error) {
+        console.warn("Supabase product delete failed:", error);
+      }
+    } else {
+      try {
+        // 2. Database Synchronization
+        await deleteDoc(doc(db, 'products', productId));
+      } catch (error) {
+        console.warn("Firestore product deletion skipped or pending offline sync:", error);
+      }
     }
   };
 
@@ -1179,10 +1341,18 @@ export default function App() {
     setProducts(prev => prev.map(p => p.id === productId ? { ...p, isApproved: true, addedByAdmin: true } : p));
     addToast('Product Approved', 'The brand new seller listing was approved successfully.', 'info');
 
-    try {
-      await updateDoc(doc(db, 'products', productId), { isApproved: true, addedByAdmin: true });
-    } catch (error) {
-      console.warn("Firestore product snapshot approve skipped or pending offline sync (quota limits):", error);
+    if (isSupabaseEnabled) {
+      try {
+        await supabase.from('products').update({ isApproved: true, addedByAdmin: true }).eq('id', productId);
+      } catch (error) {
+        console.warn("Supabase product approve failed:", error);
+      }
+    } else {
+      try {
+        await updateDoc(doc(db, 'products', productId), { isApproved: true, addedByAdmin: true });
+      } catch (error) {
+        console.warn("Firestore product snapshot approve skipped or pending offline sync (quota limits):", error);
+      }
     }
   };
 
@@ -1191,11 +1361,19 @@ export default function App() {
     setProducts(prev => prev.filter(p => p.id !== productId));
     addToast('Product Rejected', 'The pending vendor listing was rejected.', 'info');
 
-    try {
-      // 2. Database Synchronization
-      await deleteDoc(doc(db, 'products', productId));
-    } catch (error) {
-      console.warn("Firestore reject delete skipped or pending offline sync:", error);
+    if (isSupabaseEnabled) {
+      try {
+        await supabase.from('products').delete().eq('id', productId);
+      } catch (error) {
+        console.warn("Supabase product reject failed:", error);
+      }
+    } else {
+      try {
+        // 2. Database Synchronization
+        await deleteDoc(doc(db, 'products', productId));
+      } catch (error) {
+        console.warn("Firestore reject delete skipped or pending offline sync:", error);
+      }
     }
   };
 
@@ -3236,6 +3414,90 @@ export default function App() {
         ))}
       </div>
 
+
+      {/* Custom Delete Confirmation Modal overlay */}
+      {productToConfirmDelete && (
+        <div 
+          id="delete-confirmation-modal-overlay" 
+          className="fixed inset-0 z-[110] bg-black/65 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in font-sans"
+          onClick={() => setProductToConfirmDelete(null)}
+        >
+          <div 
+            id="delete-confirmation-modal-card"
+            className="bg-white rounded-2xl shadow-2xl border border-gray-150 overflow-hidden w-full max-w-sm animate-slide-up"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Warning gradient banner */}
+            <div className="bg-red-50 text-red-700 px-6 py-5 border-b border-red-100 flex items-center gap-3">
+              <div className="p-2 bg-red-100 text-red-600 rounded-xl">
+                <ShieldAlert className="w-5 h-5 animate-pulse" />
+              </div>
+              <div className="text-left">
+                <h3 className="font-display font-black text-xs uppercase tracking-wider text-red-950">Confirm Deletion</h3>
+                <p className="text-[9px] text-red-600 uppercase tracking-widest font-black font-mono">Administrative Action Required</p>
+              </div>
+            </div>
+
+            {/* Modal Body content */}
+            <div className="p-6 space-y-4 text-left">
+              <p className="text-xs text-neutral-600 font-medium leading-relaxed">
+                Are you sure you want to permanently remove this catalog item from the Quxba platform?
+              </p>
+
+              {/* Product Info Card Preview */}
+              <div className="p-3 bg-neutral-50 border border-neutral-100 rounded-xl flex items-center gap-3">
+                <div className="w-12 h-12 rounded-lg bg-white border border-gray-200 p-0.5 overflow-hidden flex-shrink-0 flex items-center justify-center shadow-2xs">
+                  <img 
+                    src={productToConfirmDelete.imageUrl} 
+                    alt={productToConfirmDelete.name}
+                    className="max-h-full max-w-full object-contain"
+                    referrerPolicy="no-referrer"
+                    onError={(e) => { e.currentTarget.src = 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=600&q=80'; }}
+                  />
+                </div>
+                <div className="min-w-0 flex-grow text-left">
+                  <span className="text-[8px] font-black uppercase text-gray-400 tracking-wider">
+                    {productToConfirmDelete.category}
+                  </span>
+                  <h4 className="text-[11px] font-bold text-neutral-900 truncate leading-snug mt-0.5">
+                    {productToConfirmDelete.name}
+                  </h4>
+                  <p className="text-[11px] font-black text-[#7c3aed] mt-0.5">
+                    ₦ {productToConfirmDelete.price.toLocaleString('en-NG')}
+                  </p>
+                </div>
+              </div>
+
+              <p className="text-[10px] text-red-500 font-bold leading-relaxed">
+                ⚠ Note: This action is permanent and cannot be undone.
+              </p>
+            </div>
+
+            {/* Actions CTA Bar */}
+            <div className="bg-neutral-50 px-6 py-4 border-t border-neutral-100 flex gap-2.5 justify-end">
+              <button 
+                id="delete-confirm-btn-no"
+                onClick={() => setProductToConfirmDelete(null)}
+                className="bg-white hover:bg-neutral-100 text-neutral-600 font-black text-[10px] px-4 py-2.5 rounded-xl border border-neutral-200 uppercase tracking-wider transition active:scale-95 cursor-pointer outline-none focus:ring-1 focus:ring-neutral-300"
+              >
+                Keep Listing
+              </button>
+              <button 
+                id="delete-confirm-btn-yes"
+                onClick={() => {
+                  if (productToConfirmDelete) {
+                    executeDeleteProduct(productToConfirmDelete.id);
+                    setProductToConfirmDelete(null);
+                  }
+                }}
+                className="bg-red-600 hover:bg-red-700 text-white font-black text-[10px] px-5 py-2.5 rounded-xl shadow-sm uppercase tracking-wider transition active:scale-95 cursor-pointer outline-none focus:ring-1 focus:ring-red-400"
+              >
+                Yes, Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
 
     </div>

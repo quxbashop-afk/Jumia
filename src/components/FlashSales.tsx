@@ -198,15 +198,13 @@ export default function FlashSales({
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (window.confirm(`Are you sure you want to delete "${product.name}"? This is irreversible.`)) {
-                        onDeleteProduct(product.id);
-                      }
+                      onDeleteProduct(product.id);
                     }}
-                    className="absolute top-1.5 left-1.5 bg-red-50 hover:bg-red-100 text-red-650 p-1.5 rounded-full z-20 shadow-md border border-red-200 transition duration-150 active:scale-90 cursor-pointer"
+                    className="absolute top-1.5 left-1.5 bg-red-50 hover:bg-red-600 hover:text-white text-red-600 p-1.5 rounded-full z-20 shadow-md border border-red-200 transition-all duration-250 active:scale-90 cursor-pointer hover:scale-105 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-red-400"
                     title="Delete Product"
                     id={`delete-btn-${product.id}`}
                   >
-                    <Trash2 className="w-3.5 h-3.5 text-red-600 font-bold" />
+                    <Trash2 className="w-3.5 h-3.5 font-bold" />
                   </button>
                 )}
 
