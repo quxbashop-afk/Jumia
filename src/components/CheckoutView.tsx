@@ -323,6 +323,8 @@ export default function CheckoutView({
         }
       };
 
+      const randomPin = Math.floor(1000 + Math.random() * 9000).toString();
+
       const newOrder: Order = {
         id: randomId,
         date: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
@@ -347,6 +349,7 @@ export default function CheckoutView({
         taxAmount,
         subtotal,
         grandTotal,
+        verificationPin: randomPin,
         statusTimestamps: {
           'Pending': new Date().toLocaleString('en-NG', { timeZone: 'Africa/Lagos' })
         }

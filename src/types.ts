@@ -73,6 +73,7 @@ export interface Order {
   expectedDelivery: string;
   customerEmail?: string;
   statusTimestamps?: Record<string, string>;
+  verificationPin?: string;
   // Expanded Checkout fields
   customerName?: string;
   customerPhone?: string;

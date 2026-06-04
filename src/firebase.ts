@@ -45,8 +45,19 @@ if (typeof window !== 'undefined') {
 
 export const auth = authInstance;
 
-// Validate Connection to Firestore (as requested in SKILL.md rules)
+// Validate Connection to Firestore (as requested in SKILL.md rules) Only if Supabase is disabled
 async function testConnection() {
+  const isSupabaseConfigured = Boolean(
+    import.meta.env.VITE_SUPABASE_URL && 
+    import.meta.env.VITE_SUPABASE_ANON_KEY && 
+    (import.meta.env.VITE_SUPABASE_URL.includes('http://') || import.meta.env.VITE_SUPABASE_URL.includes('https://'))
+  );
+
+  if (isSupabaseConfigured) {
+    console.log("ℹ️ Skipping Firebase Connection Test because Supabase is active.");
+    return;
+  }
+
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
   } catch (error) {

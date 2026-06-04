@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Gift, Percent, Calendar, Sparkles } from 'lucide-react';
 import { db, OperationType, handleFirestoreError } from '../firebase';
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { isSupabaseEnabled, supabase, supabaseGetAdverts } from '../supabase';
 import { Advertisement } from '../types';
 import clearanceMegaSaleImage from '../assets/images/clearance_mega_sale_1780330738754.png';
 
@@ -39,8 +40,48 @@ export default function HeroCarousel({ onSelectCategory }: HeroCarouselProps) {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [customAdverts, setCustomAdverts] = useState<Advertisement[]>([]);
 
-  // 1. Fetch custom advertisements in real-time from Firestore
+  // 1. Fetch custom advertisements in real-time
   useEffect(() => {
+    if (isSupabaseEnabled) {
+      const fetchSupabaseAdverts = async () => {
+        try {
+          const ads = await supabaseGetAdverts();
+          setCustomAdverts(ads);
+        } catch (e) {
+          console.warn("Supabase fetch adverts error:", e);
+        }
+      };
+
+      fetchSupabaseAdverts();
+
+      const channel = supabase
+        .channel('adverts-realtime')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'adverts' },
+          () => {
+            fetchSupabaseAdverts();
+          }
+        )
+        .subscribe();
+
+      const altChannel = supabase
+        .channel('advertisements-realtime')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'advertisements' },
+          () => {
+            fetchSupabaseAdverts();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+        supabase.removeChannel(altChannel);
+      };
+    }
+
     const q = query(collection(db, 'adverts'), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const ads: Advertisement[] = [];

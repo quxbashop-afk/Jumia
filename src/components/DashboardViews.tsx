@@ -2,12 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { 
   Building2, Percent, TrendingUp, Users, ShoppingBag, Plus, Trash2, Check, X, ShieldAlert, BadgeAlert,
   Send, RefreshCw, BarChart3, CheckSquare, Coins, HelpCircle, PackageOpen, ArrowRight, UserCheck, Star,
-  ChevronRight, Loader2, Sparkles, Wand2, QrCode
+  ChevronRight, Loader2, Sparkles, Wand2, QrCode, Lock, ShieldCheck, Shield
 } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 import { Product, Order, SupportMessage, CartItem, ProductOption, ProductVariant, Advertisement } from '../types';
 import { db, OperationType, handleFirestoreError } from '../firebase';
 import { collection, onSnapshot, query, orderBy, setDoc, doc, deleteDoc } from 'firebase/firestore';
+import { isSupabaseEnabled, supabase, supabaseGetAdverts, supabaseAddAdvert, supabaseDeleteAdvert } from '../supabase';
 import quxbaLogo from '../assets/images/quxba_app_logo_1780449558383.png';
 
 
@@ -758,8 +759,48 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct, ca
   const [adSuccess, setAdSuccess] = useState('');
   const [isAdSubmitting, setIsAdSubmitting] = useState(false);
 
-  // Subscribe to custom adverts from Firestore in real-time
+  // Subscribe to custom adverts in real-time
   useEffect(() => {
+    if (isSupabaseEnabled) {
+      const fetchSupabaseAdverts = async () => {
+        try {
+          const ads = await supabaseGetAdverts();
+          setAdverts(ads);
+        } catch (e) {
+          console.warn("Supabase dashboard fetch adverts error:", e);
+        }
+      };
+
+      fetchSupabaseAdverts();
+
+      const channel = supabase
+        .channel('dashboard-adverts-realtime')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'adverts' },
+          () => {
+            fetchSupabaseAdverts();
+          }
+        )
+        .subscribe();
+
+      const altChannel = supabase
+        .channel('dashboard-advertisements-realtime')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'advertisements' },
+          () => {
+            fetchSupabaseAdverts();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+        supabase.removeChannel(altChannel);
+      };
+    }
+
     const q = query(collection(db, 'adverts'), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const ads: Advertisement[] = [];
@@ -830,7 +871,11 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct, ca
         createdAt: editingAd ? editingAd.createdAt : Date.now()
       };
 
-      await setDoc(doc(db, 'adverts', adId), adData);
+      if (isSupabaseEnabled) {
+        await supabaseAddAdvert(adData);
+      } else {
+        await setDoc(doc(db, 'adverts', adId), adData);
+      }
       
       setAdSuccess(editingAd ? 'Advertisement banner updated successfully!' : 'New Advertisement banner published successfully!');
       setTimeout(() => {
@@ -848,7 +893,11 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct, ca
   const handleDeleteAd = async (adId: string) => {
     if (!window.confirm('Are you sure you want to remove this advertising banner?')) return;
     try {
-      await deleteDoc(doc(db, 'adverts', adId));
+      if (isSupabaseEnabled) {
+        await supabaseDeleteAdvert(adId);
+      } else {
+        await deleteDoc(doc(db, 'adverts', adId));
+      }
     } catch (err) {
       console.error("Error deleting advertisement:", err);
     }
@@ -2884,6 +2933,10 @@ export function AdminDashboard({
   const pendingProducts = products.filter(p => !p.isApproved);
   const liveCount = products.filter(p => p.isApproved).length;
 
+  const [activePinInputs, setActivePinInputs] = useState<Record<string, string>>({});
+  const [pinErrors, setPinErrors] = useState<Record<string, string>>({});
+  const [showPinInputForOrder, setShowPinInputForOrder] = useState<Record<string, boolean>>({});
+
   return (
     <div className="space-y-8 animate-fade-in font-sans">
       
@@ -3088,12 +3141,70 @@ export function AdminDashboard({
                             </button>
                           )}
                           {o.status === 'Out for Delivery' && onUpdateOrderStatus && (
-                            <button
-                              onClick={() => onUpdateOrderStatus(o.id, 'Delivered')}
-                              className="bg-green-600 hover:bg-green-705 bg-green-600 hover:bg-green-700 text-white font-extrabold text-[10px] px-2 py-1 rounded transition duration-150 cursor-pointer"
-                            >
-                              Deliver Package
-                            </button>
+                            showPinInputForOrder[o.id] ? (
+                              <div className="bg-purple-50 p-2 rounded border border-purple-200 flex flex-col gap-1 w-36 text-left shadow-sm">
+                                <label className="text-[8px] font-black text-purple-700 uppercase tracking-wider block">
+                                  🔑 Enter PIN:
+                                  <span className="text-gray-400 font-mono font-bold block lowercase">
+                                    {o.verificationPin ? `(Try: ${o.verificationPin})` : '(Try: 5420)'}
+                                  </span>
+                                </label>
+                                <input
+                                  type="text"
+                                  maxLength={8}
+                                  value={activePinInputs[o.id] || ''}
+                                  onChange={(e) => {
+                                    const val = e.target.value.trim();
+                                    setActivePinInputs(prev => ({ ...prev, [o.id]: val }));
+                                    if (pinErrors[o.id]) {
+                                      setPinErrors(prev => ({ ...prev, [o.id]: '' }));
+                                    }
+                                  }}
+                                  placeholder="4 digits"
+                                  className="bg-white border border-purple-300 p-1 rounded font-mono font-extrabold text-[10px] text-center focus:outline-none tracking-widest text-purple-900"
+                                />
+                                {pinErrors[o.id] && (
+                                  <p className="text-red-650 text-[8px] font-bold leading-tight">
+                                    ⚠️ {pinErrors[o.id]}
+                                  </p>
+                                )}
+                                <div className="flex gap-1 mt-1">
+                                  <button
+                                    onClick={() => {
+                                      const typed = activePinInputs[o.id] || '';
+                                      const actual = o.verificationPin || '5420';
+                                      if (typed === actual) {
+                                        onUpdateOrderStatus(o.id, 'Delivered');
+                                        setShowPinInputForOrder(prev => ({ ...prev, [o.id]: false }));
+                                        setPinErrors(prev => ({ ...prev, [o.id]: '' }));
+                                      } else {
+                                        setPinErrors(prev => ({ ...prev, [o.id]: 'Wrong PIN' }));
+                                      }
+                                    }}
+                                    className="flex-1 bg-green-600 hover:bg-green-700 text-white font-black text-[8px] py-1 rounded transition cursor-pointer"
+                                  >
+                                    Unlock
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setShowPinInputForOrder(prev => ({ ...prev, [o.id]: false }));
+                                      setPinErrors(prev => ({ ...prev, [o.id]: '' }));
+                                    }}
+                                    className="bg-gray-100 hover:bg-gray-200 text-gray-500 font-bold text-[8px] px-1.5 py-1 rounded"
+                                  >
+                                    Hide
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => setShowPinInputForOrder(prev => ({ ...prev, [o.id]: true }))}
+                                className="bg-green-600 hover:bg-green-705 bg-green-600 hover:bg-green-700 text-white font-extrabold text-[10px] px-2 py-1 rounded transition duration-150 cursor-pointer flex items-center gap-1 shadow"
+                              >
+                                <Lock className="w-3 h-3 text-white" />
+                                <span>Deliver Package</span>
+                              </button>
+                            )
                           )}
                         </div>
                       )}
@@ -3380,6 +3491,30 @@ export function OrderSummaryCard({
               );
             })}
           </div>
+
+          {/* Quxba Escrow Safeguard Active banner block */}
+          {order.status !== 'Delivered' && (
+            <div className="bg-neutral-900 border border-purple-900/40 p-4 rounded-xl shadow-inner space-y-2.5">
+              <div className="flex items-center gap-2 pb-2 border-b border-neutral-800">
+                <ShieldCheck className="w-5 h-5 text-purple-400 stroke-[2.5]" />
+                <div className="text-left">
+                  <h4 className="text-xs font-black tracking-widest uppercase font-mono text-white">🔒 QUXBA ESCROW SECURED</h4>
+                  <p className="text-[10px] text-purple-300 font-medium">SafeTrade Zero-Trust Protection active</p>
+                </div>
+              </div>
+              
+              <p className="text-[11px] text-gray-405 text-gray-400 leading-relaxed text-left">
+                Payment of <strong className="text-purple-300">₦{(order.grandTotal ?? order.totalPrice).toLocaleString()}</strong> is securely held in Quxba Trust. Inspect item quality with the rider. Only hand over the PIN below if you are 100% satisfied.
+              </p>
+
+              <div className="flex items-center justify-between bg-black/45 p-2.5 px-3.5 rounded-lg border border-purple-950">
+                <span className="text-[10px] font-bold text-gray-400 font-mono uppercase tracking-widest select-none">PRIVATE HANDOVER PIN:</span>
+                <span className="font-mono text-base font-black text-[#a78bfa] tracking-[0.2em] select-all">
+                  {order.verificationPin || '5420'}
+                </span>
+              </div>
+            </div>
+          )}
 
           {/* Real-time Dynamic QR Dispatch Pass Segment */}
           <div className="border-t border-neutral-150 pt-5 space-y-4">

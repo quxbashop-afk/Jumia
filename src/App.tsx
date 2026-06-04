@@ -10,6 +10,7 @@ import FlashSales from './components/FlashSales';
 import ProductCard from './components/ProductCard';
 import CartDrawer from './components/CartDrawer';
 import WishlistDrawer from './components/WishlistDrawer';
+import ScamShieldDrawer from './components/ScamShieldDrawer';
 import ProductDetailModal from './components/ProductDetailModal';
 import QuickViewModal from './components/QuickViewModal';
 import CheckoutView from './components/CheckoutView';
@@ -45,7 +46,10 @@ import {
   supabaseSignOut, 
   supabaseGetProducts, 
   supabaseAddProduct, 
-  supabaseGetCategories 
+  supabaseGetCategories,
+  supabaseAddOrder,
+  supabaseGetOrders,
+  supabaseUpdateOrderStatus
 } from './supabase';
 import { 
   signInWithEmailAndPassword, 
@@ -85,6 +89,20 @@ export default function App() {
   });
   const [firestoreQuotaExceeded, setFirestoreQuotaExceeded] = useState(false);
   const [productToConfirmDelete, setProductToConfirmDelete] = useState<Product | null>(null);
+  const [deletedProductIds, setDeletedProductIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('quxba_deleted_product_ids');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed;
+        }
+      }
+    } catch (e) {}
+    return [];
+  });
+
+  const visibleProducts = products.filter(p => !deletedProductIds.includes(p.id));
 
   const DEFAULT_CATEGORIES = [
     {
@@ -316,8 +334,49 @@ export default function App() {
   const [authName, setAuthName] = useState('');
   const [authError, setAuthError] = useState('');
 
-  // Firebase Real-time listeners & Auth Change Trigger
+  // Session listener & Auth Change Trigger (Supabase / Firebase)
   useEffect(() => {
+    if (isSupabaseEnabled) {
+      // 1. Get current session
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session && session.user) {
+          const u = {
+            email: session.user.email || '',
+            name: session.user.user_metadata?.full_name || session.user.user_metadata?.display_name || session.user.email?.split('@')[0] || 'User'
+          };
+          setCurrentUser(u);
+          localStorage.setItem('jumia_logged_in_user', JSON.stringify(u));
+          localStorage.setItem('jumia_auth_method', 'supabase');
+        }
+      }).catch(err => {
+        console.warn("Supabase auth session load warning:", err);
+      });
+
+      // 2. Listen to auth changes
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+        if (session && session.user) {
+          const u = {
+            email: session.user.email || '',
+            name: session.user.user_metadata?.full_name || session.user.user_metadata?.display_name || session.user.email?.split('@')[0] || 'User'
+          };
+          setCurrentUser(u);
+          localStorage.setItem('jumia_logged_in_user', JSON.stringify(u));
+          localStorage.setItem('jumia_auth_method', 'supabase');
+        } else if (event === 'SIGNED_OUT' || !session) {
+          const authMethod = localStorage.getItem('jumia_auth_method');
+          if (authMethod === 'supabase' || !authMethod) {
+            setCurrentUser(null);
+            localStorage.removeItem('jumia_logged_in_user');
+            localStorage.removeItem('jumia_auth_method');
+          }
+        }
+      });
+
+      return () => {
+        subscription.unsubscribe();
+      };
+    }
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         const email = firebaseUser.email || '';
@@ -353,7 +412,7 @@ export default function App() {
         }
       } else {
         const authMethod = localStorage.getItem('jumia_auth_method');
-        if (authMethod !== 'local') {
+        if (authMethod !== 'local' && authMethod !== 'supabase') {
           setCurrentUser(null);
           localStorage.removeItem('jumia_logged_in_user');
           localStorage.removeItem('jumia_auth_method');
@@ -419,6 +478,38 @@ export default function App() {
               localStorage.setItem('quxba_local_products', JSON.stringify(formatted));
             } catch (e) {}
           } else {
+            // Auto-seeding default catalog to Supabase if it is empty to ensure real persistent records
+            const emailInStorage = localStorage.getItem('jumia_logged_in_user');
+            const isAdmin = (emailInStorage && emailInStorage.toLowerCase().includes('quxbashop@gmail.com')) || 
+                            (currentUser?.email && currentUser.email.toLowerCase() === 'quxbashop@gmail.com');
+            if (isAdmin) {
+              console.log("[Supabase Product Sync] Products table is empty. Auto-seeding default catalog to Supabase...");
+              try {
+                for (const prod of INITIAL_PRODUCTS) {
+                  await supabaseAddProduct({
+                    ...prod,
+                    addedByAdmin: true,
+                    isApproved: true,
+                    adminId: 'quxbashop@gmail.com'
+                  });
+                }
+                const updatedList = await supabaseGetProducts();
+                if (updatedList && updatedList.length > 0) {
+                  const formatted = updatedList.map((p: any) => ({
+                    ...p,
+                    createdAt: p.created_at ? new Date(p.created_at).getTime() : Date.now(),
+                  }));
+                  detectChanges(formatted);
+                  setProducts(formatted);
+                  try {
+                    localStorage.setItem('quxba_local_products', JSON.stringify(formatted));
+                  } catch (e) {}
+                  return;
+                }
+              } catch (seedErr) {
+                console.warn("[Supabase Product Sync] Seeding default catalog error:", seedErr);
+              }
+            }
             setProducts(INITIAL_PRODUCTS);
           }
         } catch (e) {
@@ -579,6 +670,44 @@ export default function App() {
       setOrders([]);
       return;
     }
+
+    if (isSupabaseEnabled) {
+      const fetchSupabaseOrders = async () => {
+        try {
+          const ordList = await supabaseGetOrders(currentUser.email, currentUser.email === 'quxbashop@gmail.com');
+          const formatted = ordList.map((o: any) => ({
+            ...o,
+            items: typeof o.items === 'string' ? JSON.parse(o.items) : (o.items || []),
+            statusTimestamps: typeof o.statusTimestamps === 'string' ? JSON.parse(o.statusTimestamps) : (o.statusTimestamps || {})
+          }));
+          formatted.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+          setOrders(formatted);
+          try {
+            localStorage.setItem('quxba_local_orders', JSON.stringify(formatted));
+          } catch (e) {}
+        } catch (e) {
+          console.warn("Supabase orders load warning:", e);
+        }
+      };
+
+      fetchSupabaseOrders();
+
+      const channel = supabase
+        .channel('orders-realtime')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'orders' },
+          () => {
+            fetchSupabaseOrders();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+
     const collectionRef = collection(db, 'orders');
     // For admin, read all. For other users, filter by customerEmail to avoid permission rules violation.
     const q = currentUser.email === 'quxbashop@gmail.com' 
@@ -969,17 +1098,18 @@ export default function App() {
   // Drawer / overlay triggers
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isWishlistOpen, setIsWishlistOpen] = useState(false);
+  const [isScamShieldOpen, setIsScamShieldOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   useEffect(() => {
     if (!selectedProduct) {
       const savedId = localStorage.getItem('quxba_selected_product_id');
-      if (savedId && products.length > 0) {
-        const found = products.find(p => p.id === savedId);
+      if (savedId && visibleProducts.length > 0) {
+        const found = visibleProducts.find(p => p.id === savedId);
         if (found) setSelectedProduct(found);
       }
     }
-  }, [products, selectedProduct]);
+  }, [visibleProducts, selectedProduct]);
 
   const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
 
@@ -997,7 +1127,7 @@ export default function App() {
   const [showTermsModal, setShowTermsModal] = useState(false);
 
   const handleAddReview = async (productId: string, rating: number, comment: string, userName: string) => {
-    const prod = products.find(p => p.id === productId);
+    const prod = visibleProducts.find(p => p.id === productId);
     if (!prod) return;
 
     const newReview = {
@@ -1139,7 +1269,7 @@ export default function App() {
   };
 
   const handlePlaceOrder = async (newOrder: Order) => {
-    // Inject the customer email if logged in to link it securely in Firestore
+    // Inject the customer email if logged in to link it securely
     const orderWithEmail: Order = {
       ...newOrder,
       customerEmail: currentUser?.email || 'guest@gmail.com',
@@ -1152,11 +1282,20 @@ export default function App() {
     setOrders(prev => [orderWithEmail, ...prev]);
     addToast('Order Placed', 'Your order was successfully submitted and registered locally.', 'info');
 
-    try {
-      await setDoc(doc(db, 'orders', newOrder.id), orderWithEmail);
-      console.log(`[Mock Email Notification Service] SUCCESS: Simulating email delivery... Order confirmation successfully generated & sent to customer inbox at ${orderWithEmail.customerEmail} for order ID: ${newOrder.id}`);
-    } catch (error) {
-      console.warn("Firestore order placement skipped or pending offline sync (quota limits):", error);
+    if (isSupabaseEnabled) {
+      try {
+        await supabaseAddOrder(orderWithEmail);
+        console.log(`[Supabase Order Sync] SUCCESS: Synchronizing confirmation for order ID: ${newOrder.id}`);
+      } catch (error) {
+        console.warn("Supabase order placement warning:", error);
+      }
+    } else {
+      try {
+        await setDoc(doc(db, 'orders', newOrder.id), orderWithEmail);
+        console.log(`[Mock Email Notification Service] SUCCESS: Simulating email delivery... Order confirmation successfully generated & sent to customer inbox at ${orderWithEmail.customerEmail} for order ID: ${newOrder.id}`);
+      } catch (error) {
+        console.warn("Firestore order placement skipped or pending offline sync (quota limits):", error);
+      }
     }
   };
 
@@ -1164,39 +1303,51 @@ export default function App() {
     const cancelTime = new Date().toLocaleString('en-NG', { timeZone: 'Africa/Lagos' });
     
     // 1. Optimistic local state update
+    let updatedOrder: Order | null = null;
     setOrders(prev => prev.map(o => {
       if (o.id === orderId) {
         const currentTimestamps = o.statusTimestamps || {};
-        return {
+        const matched = {
           ...o,
-          status: 'Cancelled',
+          status: 'Cancelled' as const,
           statusTimestamps: {
             ...currentTimestamps,
             'Cancelled': cancelTime
           }
         };
+        updatedOrder = matched;
+        return matched;
       }
       return o;
     }));
     addToast('Order Cancelled', 'Your order has been cancelled successfully.', 'info');
 
-    try {
-      const orderRef = doc(db, 'orders', orderId);
-      const snap = await getDoc(orderRef);
-      if (snap.exists()) {
-        const orderData = snap.data() as Order;
-        const currentTimestamps = orderData.statusTimestamps || {};
-        const updatedTimestamps = {
-          ...currentTimestamps,
-          'Cancelled': cancelTime
-        };
-        await updateDoc(orderRef, {
-          status: 'Cancelled',
-          statusTimestamps: updatedTimestamps
-        });
+    if (isSupabaseEnabled) {
+      try {
+        const currentTimestamps = updatedOrder?.statusTimestamps || {};
+        await supabaseUpdateOrderStatus(orderId, 'Cancelled', currentTimestamps);
+      } catch (error) {
+        console.warn("Supabase cancel order status update failed:", error);
       }
-    } catch (error) {
-      console.warn("Firestore order cancel update skipped or pending offline sync:", error);
+    } else {
+      try {
+        const orderRef = doc(db, 'orders', orderId);
+        const snap = await getDoc(orderRef);
+        if (snap.exists()) {
+          const orderData = snap.data() as Order;
+          const currentTimestamps = orderData.statusTimestamps || {};
+          const updatedTimestamps = {
+            ...currentTimestamps,
+            'Cancelled': cancelTime
+          };
+          await updateDoc(orderRef, {
+            status: 'Cancelled',
+            statusTimestamps: updatedTimestamps
+          });
+        }
+      } catch (error) {
+        console.warn("Firestore order cancel update skipped or pending offline sync:", error);
+      }
     }
   };
 
@@ -1204,10 +1355,11 @@ export default function App() {
     const updateTime = new Date().toLocaleString('en-NG', { timeZone: 'Africa/Lagos' });
 
     // 1. Optimistic local state update
+    let updatedOrder: Order | null = null;
     setOrders(prev => prev.map(o => {
       if (o.id === orderId) {
         const currentTimestamps = o.statusTimestamps || {};
-        return {
+        const matched = {
           ...o,
           status: nextStatus,
           statusTimestamps: {
@@ -1215,28 +1367,39 @@ export default function App() {
             [nextStatus]: updateTime
           }
         };
+        updatedOrder = matched;
+        return matched;
       }
       return o;
     }));
     addToast('Status Updated', `Order status updated to ${nextStatus}.`, 'info');
 
-    try {
-      const orderRef = doc(db, 'orders', orderId);
-      const snap = await getDoc(orderRef);
-      if (snap.exists()) {
-        const orderData = snap.data() as Order;
-        const currentTimestamps = orderData.statusTimestamps || {};
-        const updatedTimestamps = {
-          ...currentTimestamps,
-          [nextStatus]: updateTime
-        };
-        await updateDoc(orderRef, {
-          status: nextStatus,
-          statusTimestamps: updatedTimestamps
-        });
+    if (isSupabaseEnabled) {
+      try {
+        const currentTimestamps = updatedOrder?.statusTimestamps || {};
+        await supabaseUpdateOrderStatus(orderId, nextStatus, currentTimestamps);
+      } catch (error) {
+        console.warn("Supabase update order status failed:", error);
       }
-    } catch (error) {
-      console.warn("Firestore status update skipped or pending offline sync:", error);
+    } else {
+      try {
+        const orderRef = doc(db, 'orders', orderId);
+        const snap = await getDoc(orderRef);
+        if (snap.exists()) {
+          const orderData = snap.data() as Order;
+          const currentTimestamps = orderData.statusTimestamps || {};
+          const updatedTimestamps = {
+            ...currentTimestamps,
+            [nextStatus]: updateTime
+          };
+          await updateDoc(orderRef, {
+            status: nextStatus,
+            statusTimestamps: updatedTimestamps
+          });
+        }
+      } catch (error) {
+        console.warn("Firestore status update skipped or pending offline sync:", error);
+      }
     }
   };
 
@@ -1298,6 +1461,14 @@ export default function App() {
     };
 
     // 1. Optimistic Local State Update
+    setDeletedProductIds(prev => {
+      const updated = prev.filter(id => id !== sanitizedProduct.id);
+      try {
+        localStorage.setItem('quxba_deleted_product_ids', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+
     setProducts(prev => {
       const filtered = prev.filter(p => p.id !== sanitizedProduct.id);
       return [sanitizedProduct, ...filtered];
@@ -1321,7 +1492,7 @@ export default function App() {
   };
 
   const handleDeleteProduct = (productId: string) => {
-    const prod = products.find(p => p.id === productId);
+    const prod = visibleProducts.find(p => p.id === productId);
     if (prod) {
       setProductToConfirmDelete(prod);
     } else {
@@ -1330,7 +1501,16 @@ export default function App() {
   };
 
   const executeDeleteProduct = async (productId: string) => {
-    // 1. Optimistic Local State Deletion (high-availability safeguard)
+    // 1. Save deleted ID locally to ensure it is immediately and persistently filtered out
+    setDeletedProductIds(prev => {
+      const updated = prev.includes(productId) ? prev : [...prev, productId];
+      try {
+        localStorage.setItem('quxba_deleted_product_ids', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+
+    // 2. Optimistic Local State Deletion (high-availability safeguard)
     setProducts(prev => prev.filter(p => p.id !== productId));
     addToast('Product Deleted', 'The catalog item was successfully removed.', 'info');
 
@@ -1342,7 +1522,7 @@ export default function App() {
       }
     } else {
       try {
-        // 2. Database Synchronization
+        // 3. Database Synchronization
         await deleteDoc(doc(db, 'products', productId));
       } catch (error) {
         console.warn("Firestore product deletion skipped or pending offline sync:", error);
@@ -1416,7 +1596,7 @@ export default function App() {
   };
 
   // Only show approved products on public customer storefront
-  const publicProducts = products.filter((p) => p.isApproved);
+  const publicProducts = visibleProducts.filter((p) => p.isApproved);
 
   const filteredProducts = publicProducts.filter((product) => {
     const matchesCategory =
@@ -2162,7 +2342,7 @@ export default function App() {
         {currentView === 'seller' && (
           currentUser?.email === 'quxbashop@gmail.com' ? (
             <SellerDashboard
-              products={products}
+              products={visibleProducts}
               onAddNewProduct={handleAddNewProductFromSeller}
               onDeleteProduct={handleDeleteProduct}
               categories={categories}
@@ -2186,7 +2366,7 @@ export default function App() {
         {currentView === 'admin' && (
           currentUser?.email === 'quxbashop@gmail.com' ? (
             <AdminDashboard
-              products={products}
+              products={visibleProducts}
               onApproveProduct={handleApproveProductFromAdmin}
               onRejectProduct={handleRejectProductFromAdmin}
               orders={orders}
@@ -2364,8 +2544,17 @@ export default function App() {
         onMoveToCart={handleMoveToCart}
       />
 
+      <ScamShieldDrawer
+        isOpen={isScamShieldOpen}
+        onClose={() => setIsScamShieldOpen(false)}
+        orders={orders}
+        allProducts={visibleProducts}
+        onSelectProduct={(p) => setSelectedProduct(p)}
+        onToggleView={(v) => setCurrentView(v)}
+      />
+
       <ProductDetailModal
-        product={selectedProduct ? products.find(p => p.id === selectedProduct.id) || selectedProduct : null}
+        product={selectedProduct ? visibleProducts.find(p => p.id === selectedProduct.id) || selectedProduct : null}
         onClose={() => setSelectedProduct(null)}
         onAddToCart={handleAddToCart}
         onToggleWishlist={handleToggleWishlist}
@@ -2406,6 +2595,27 @@ export default function App() {
           </button>
         </div>
       )}
+
+      {/* Floating active Cyber-Escrow ScamShield button */}
+      <div className="fixed bottom-24 right-4 md:right-8 z-40 group">
+        {/* Radar wave background */}
+        <span className="absolute inset-0 rounded-full bg-purple-600/35 animate-ping" />
+        <span className="absolute -inset-1 rounded-full bg-purple-500/10 animate-pulse" />
+        
+        <button
+          type="button"
+          onClick={() => setIsScamShieldOpen(true)}
+          className="relative flex items-center gap-2 bg-gradient-to-r from-purple-800 to-indigo-950 border border-purple-700 text-white font-black text-[11px] px-3.5 py-3 rounded-full hover:from-purple-700 hover:to-indigo-900 shadow-[0_4px_18px_rgba(124,58,237,0.35)] hover:shadow-[0_6px_22px_rgba(124,58,237,0.5)] active:scale-95 transition-all duration-200 cursor-pointer select-none"
+        >
+          <ShieldAlert className="w-4 h-4 text-purple-300 animate-bounce" />
+          <span className="max-w-px md:max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-500 ease-out font-mono tracking-widest uppercase inline-block whitespace-nowrap">
+            SECURE TRADE
+          </span>
+          <span className="font-mono text-[9px] bg-red-600 px-1.5 py-0.5 rounded-full text-white font-bold tracking-wider">
+            SHIELD
+          </span>
+        </button>
+      </div>
 
       {/* Quxba Mobile Bottom Sticky Tab Bar (Home | Categories | Cart | Wishlist | Account) */}
       <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 shadow-[0_-2px_10px_rgba(0,0,0,0.06)] h-[62px] flex items-center justify-around md:hidden px-1 select-none">

@@ -114,3 +114,141 @@ export async function supabaseGetCategories() {
   }
   return data;
 }
+
+// 7. Add Category to Supabase
+export async function supabaseAddCategory(category: any) {
+  if (!isSupabaseEnabled) return null;
+  const { data, error } = await supabase
+    .from('categories')
+    .insert([category])
+    .select();
+  if (error) {
+    console.warn('Supabase add category warning (ignore if table schema differs):', error.message);
+    return null;
+  }
+  return data;
+}
+
+// 8. Delete Category from Supabase
+export async function supabaseDeleteCategory(categoryId: string) {
+  if (!isSupabaseEnabled) return false;
+  const { error } = await supabase
+    .from('categories')
+    .delete()
+    .eq('id', categoryId);
+  if (error) {
+    console.warn('Supabase delete category warning:', error.message);
+    return false;
+  }
+  return true;
+}
+
+// 9. Fetch Advertisements Table from Supabase
+export async function supabaseGetAdverts() {
+  if (!isSupabaseEnabled) return [];
+  const { data, error } = await supabase
+    .from('adverts')
+    .select('*')
+    .order('createdAt', { ascending: false });
+  if (error) {
+    console.warn('Could not fetch adverts from Supabase:', error.message);
+    // Try plural form in case user created table 'advertisements'
+    const { data: altData, error: altErr } = await supabase
+      .from('advertisements')
+      .select('*')
+      .order('createdAt', { ascending: false });
+    if (altErr) {
+      console.warn('Could not fetch advertisements from Supabase either:', altErr.message);
+      return [];
+    }
+    return altData;
+  }
+  return data;
+}
+
+// 10. Add Advertisement to Supabase
+export async function supabaseAddAdvert(advert: any) {
+  if (!isSupabaseEnabled) return null;
+  const { data, error } = await supabase
+    .from('adverts')
+    .insert([advert])
+    .select();
+  if (error) {
+    const { data: altData, error: altErr } = await supabase
+      .from('advertisements')
+      .insert([advert])
+      .select();
+    if (altErr) {
+      console.warn('Supabase advert insert failed:', altErr.message);
+      throw altErr;
+    }
+    return altData;
+  }
+  return data;
+}
+
+// 11. Delete Advertisement from Supabase
+export async function supabaseDeleteAdvert(id: string) {
+  if (!isSupabaseEnabled) return false;
+  const { error } = await supabase
+    .from('adverts')
+    .delete()
+    .eq('id', id);
+  if (error) {
+    const { error: altErr } = await supabase
+      .from('advertisements')
+      .delete()
+      .eq('id', id);
+    if (altErr) {
+      console.warn('Supabase advert delete failed:', altErr.message);
+      return false;
+    }
+  }
+  return true;
+}
+
+// 12. Fetch Orders Table from Supabase
+export async function supabaseGetOrders(email?: string, isAdmin?: boolean) {
+  if (!isSupabaseEnabled) return [];
+  let queryBuilder = supabase.from('orders').select('*');
+  
+  if (email && !isAdmin) {
+    queryBuilder = queryBuilder.eq('customerEmail', email);
+  }
+  
+  const { data, error } = await queryBuilder;
+  if (error) {
+    console.warn('Could not fetch orders from Supabase table:', error.message);
+    return [];
+  }
+  return data || [];
+}
+
+// 13. Add Order to Supabase
+export async function supabaseAddOrder(order: any) {
+  if (!isSupabaseEnabled) return null;
+  const { data, error } = await supabase
+    .from('orders')
+    .insert([order])
+    .select();
+  if (error) {
+    console.warn('Supabase order insert failed:', error.message);
+    throw error;
+  }
+  return data;
+}
+
+// 14. Update Order Status in Supabase
+export async function supabaseUpdateOrderStatus(orderId: string, status: string, timestamps: any) {
+  if (!isSupabaseEnabled) return false;
+  const { error } = await supabase
+    .from('orders')
+    .update({ status, statusTimestamps: timestamps })
+    .eq('id', orderId);
+  if (error) {
+    console.warn('Supabase order update status failed:', error.message);
+    return false;
+  }
+  return true;
+}
+
