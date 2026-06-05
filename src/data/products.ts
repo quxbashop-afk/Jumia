@@ -275,6 +275,33 @@ export const INITIAL_PRODUCTS: Product[] = [
       'Type': '100% Soya & Vegetable Extract',
       'Packaging': 'Ergonomic Plastic Canister'
     }
+  },
+  {
+    id: 'hea-cos-008',
+    name: 'Nivea Pearl & Beauty Roll-On Deodorant - 48h Protection (Pack of 3)',
+    category: 'Health & Beauty',
+    price: 8500,
+    originalPrice: 12000,
+    discount: 29,
+    imageUrl: 'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?auto=format&fit=crop&w=600&q=80',
+    rating: 4.8,
+    reviewsCount: 142,
+    description: 'Nivea Pearl & Beauty Roll-on protects you for up to 48 hours from sweat and body odor while giving your underarms an even skin tone after hair removal.',
+    stock: 80,
+    sellerId: 'quxbashop@gmail.com',
+    sellerName: 'Quxba Official Store',
+    isFlashSale: false,
+    isApproved: true,
+    addedByAdmin: true,
+    adminId: 'quxbashop@gmail.com',
+    brand: 'Nivea',
+    createdAt: 1717250000000,
+    specifications: {
+      'Volume': '50ml x 3',
+      'Protection Duration': '48 Hours',
+      'Skin Type': 'All Skin Types',
+      'Fragrance': 'Pearl Extract Gentle Floral'
+    }
   }
 ];
 

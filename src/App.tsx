@@ -24,7 +24,7 @@ import { AdminStorefrontPortal } from './components/AdminStorefrontPortal';
 import { DailyDealCountdown } from './components/DailyDealCountdown';
 
 import { INITIAL_PRODUCTS } from './data/products';
-import quxbaLogo from './assets/images/quxba_app_logo_1780449558383.png';
+const quxbaLogo = '/quxba_blocks_logo.png';
 import quxbaBlocksBanner from './assets/images/quxba_blocks_banner_1780389199277.png';
 import { Product, CartItem, Order, UserAccount } from './types';
 import { 
@@ -78,6 +78,7 @@ export default function App() {
     } catch (e) {}
     return [];
   });
+  const [firestoreQuotaExceeded, setFirestoreQuotaExceeded] = useState(true);
 
   const visibleProducts = products.filter(p => !deletedProductIds.includes(p.id));
 
@@ -404,10 +405,48 @@ export default function App() {
         try {
           const prodList = await supabaseGetProducts();
           if (prodList && prodList.length > 0) {
-            const formatted = prodList.map((p: any) => ({
+            let formatted = prodList.map((p: any) => ({
               ...p,
               createdAt: p.created_at ? new Date(p.created_at).getTime() : Date.now(),
             }));
+
+            // Ensure Nivea product exists
+            const hasNivea = formatted.some(p => p.id === 'hea-cos-008');
+            if (!hasNivea) {
+              const niveaItem = INITIAL_PRODUCTS.find(p => p.id === 'hea-cos-008');
+              if (niveaItem) {
+                formatted = [...formatted, niveaItem];
+                try {
+                  await supabaseAddProduct(niveaItem);
+                } catch (addErr) {}
+              }
+            }
+
+            // Programmatically clean up non-admin uploaded products/images for quxbashop@gmail.com admin
+            if (currentUser?.email === 'quxbashop@gmail.com') {
+              const cleanList = formatted.filter((p: any) => {
+                const isInitial = INITIAL_PRODUCTS.some(ip => ip.id === p.id);
+                const isFromAdmin = p.addedByAdmin === true || p.adminId === 'quxbashop@gmail.com';
+                return isInitial || isFromAdmin;
+              });
+
+              const unauthorized = formatted.filter((p: any) => {
+                const isInitial = INITIAL_PRODUCTS.some(ip => ip.id === p.id);
+                const isFromAdmin = p.addedByAdmin === true || p.adminId === 'quxbashop@gmail.com';
+                return !isInitial && !isFromAdmin;
+              });
+
+              for (const unAuth of unauthorized) {
+                try {
+                  await supabase.from('products').delete().eq('id', unAuth.id);
+                } catch (err) {
+                  console.warn("Supabase Autoclean cleanup error:", err);
+                }
+              }
+
+              formatted = cleanList;
+            }
+
             detectChanges(formatted);
             setProducts(formatted);
             try {
@@ -474,17 +513,38 @@ export default function App() {
       // Offline / Local storage fallback products loader
       try {
         const saved = localStorage.getItem('quxba_local_products');
+        let currentProds = INITIAL_PRODUCTS;
         if (saved) {
           const parsed = JSON.parse(saved);
           if (Array.isArray(parsed) && parsed.length > 0) {
-            detectChanges(parsed);
-            setProducts(parsed);
-          } else {
-            setProducts(INITIAL_PRODUCTS);
+            currentProds = parsed;
           }
-        } else {
-          setProducts(INITIAL_PRODUCTS);
         }
+
+        // Ensure Nivea product exists (restore it back under admin settings)
+        const hasNivea = currentProds.some(p => p.id === 'hea-cos-008');
+        if (!hasNivea) {
+          const niveaItem = INITIAL_PRODUCTS.find(p => p.id === 'hea-cos-008');
+          if (niveaItem) {
+            currentProds = [...currentProds, niveaItem];
+          }
+        }
+
+        // Programmatically clean up non-admin uploaded products/images for quxbashop@gmail.com admin
+        let finalProds = currentProds;
+        if (currentUser?.email === 'quxbashop@gmail.com') {
+          finalProds = currentProds.filter((p: any) => {
+            const isInitial = INITIAL_PRODUCTS.some(ip => ip.id === p.id);
+            const isFromAdmin = p.addedByAdmin === true || p.adminId === 'quxbashop@gmail.com';
+            return isInitial || isFromAdmin;
+          });
+        }
+
+        detectChanges(finalProds);
+        setProducts(finalProds);
+        try {
+          localStorage.setItem('quxba_local_products', JSON.stringify(finalProds));
+        } catch (e) {}
       } catch (e) {
         setProducts(INITIAL_PRODUCTS);
       }
@@ -1453,8 +1513,40 @@ export default function App() {
   return (
     <div className="flex flex-col min-h-screen bg-gray-100 text-gray-900 selection:bg-purple-200">
       
+      {firestoreQuotaExceeded && (
+        <div className="bg-amber-500 border-b border-amber-600 text-neutral-950 px-4 py-3 text-xs sm:text-sm font-medium relative shadow-sm z-[100] animate-fade-in animate-pulse-subtle">
+          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
+            <div className="flex items-center gap-2">
+              <span className="text-base select-none">⚠️</span>
+              <div>
+                <strong className="font-bold">Free Daily Firestore Quota Exceeded.</strong>{' '}
+                The application is now running seamlessly in high-availability offline/local fallback mode. 
+                All listings, orders, and categories are saved locally.
+              </div>
+            </div>
+            <div className="flex items-center gap-3 shrink-0">
+              <a
+                href="https://console.firebase.google.com/project/gen-lang-client-0721826624/firestore/databases/ai-studio-87550a97-6f38-4b73-898b-6848fc7a6d64/data?openUpgradeDialog=true"
+                target="_blank"
+                referrerPolicy="no-referrer"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 bg-neutral-950 text-white rounded px-3 py-1 text-xs font-bold hover:bg-neutral-800 transition shadow"
+              >
+                Upgrade Firestore / Request Quota Increase ↗
+              </a>
+              <button
+                onClick={() => setFirestoreQuotaExceeded(false)}
+                className="text-neutral-950 font-black hover:text-neutral-700 underline text-xs cursor-pointer"
+                title="Dismiss warning"
+                type="button"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
-      
       {/* Universal Sticky Header */}
       <Header
         cart={cart}
@@ -2096,7 +2188,7 @@ export default function App() {
               onAddNewProduct={handleAddNewProductFromSeller}
               onDeleteProduct={handleDeleteProduct}
               categories={categories}
-              onQuotaExceeded={() => {}}
+              onQuotaExceeded={() => setFirestoreQuotaExceeded(true)}
             />
           ) : (
             <div className="bg-white rounded-xl shadow-md border border-neutral-100 p-8 max-w-md mx-auto text-center space-y-5 font-sans animate-fade-in my-10">

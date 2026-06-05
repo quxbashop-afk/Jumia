@@ -7,7 +7,7 @@ import {
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 import { Product, Order, SupportMessage, CartItem, ProductOption, ProductVariant, Advertisement } from '../types';
 import { isSupabaseEnabled, supabase, supabaseGetAdverts, supabaseAddAdvert, supabaseDeleteAdvert } from '../supabase';
-import quxbaLogo from '../assets/images/quxba_app_logo_1780449558383.png';
+const quxbaLogo = '/quxba_blocks_logo.png';
 
 
 // Client-side image compression utility to fit Firestore 1MB document limitations
