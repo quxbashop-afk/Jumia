@@ -2,66 +2,6 @@ import { Product } from '../types';
 
 export const INITIAL_PRODUCTS: Product[] = [
   {
-    id: 'elec-ref-001',
-    name: 'Nexus 250L Double Door Refrigerator - Premium Stainless Steel Accent',
-    category: 'Electronics & Appliances',
-    price: 385000,
-    originalPrice: 480000,
-    discount: 20,
-    imageUrl: 'https://images.unsplash.com/photo-1571875257727-256c3a8428e8?auto=format&fit=crop&w=600&q=80',
-    rating: 4.8,
-    reviewsCount: 164,
-    description: 'Keep your meals fresh and drinks ice-cold with the premium Nexus 250-Litre double door refrigerator. Featuring sleek stainless-steel body, optimal energy efficiency, high-performance compressor, and noiseless operation.',
-    stock: 24,
-    sellerId: 'sell-nexus-direct',
-    sellerName: 'Nexus Official Store',
-    isFlashSale: true,
-    isApproved: true,
-    brand: 'Nexus',
-    createdAt: 1716800000000,
-    specifications: {
-      'Capacity': '250 Litres',
-      'Defrosting Type': 'No-Frost',
-      'Material': 'Stainless Steel',
-      'Warranty': '2 Years Compressor Warranty',
-      'Energy Rating': '5 Star Energy Saver'
-    },
-    reviews: [
-      { id: '1', userName: 'Chidi K.', rating: 5, comment: 'Saves serious electricity and cools extremely fast! Recommended for Lagos heat.', date: '2026-05-15' },
-      { id: '2', userName: 'Amina B.', rating: 4, comment: 'Good size, fits well in my kitchen and elegant. Fast shipping.', date: '2026-05-10' }
-    ]
-  },
-  {
-    id: 'elec-ac-002',
-    name: 'Skyrun 1.5 HP Split Air Conditioner with Fast Cooling Turbo Mode',
-    category: 'Electronics & Appliances',
-    price: 245000,
-    originalPrice: 320000,
-    discount: 23,
-    imageUrl: 'https://images.unsplash.com/photo-1585338107529-13afc5f02586?auto=format&fit=crop&w=600&q=80',
-    rating: 4.7,
-    reviewsCount: 98,
-    description: 'Transform your space into a cool haven with the Skyrun 1.5 Horsepower split air conditioner. Outfitted with heavy-duty copper condenser, low voltage startup safety, auto-restart capability, and advanced antibacterial filters.',
-    stock: 18,
-    sellerId: 'sell-skyrun-hub',
-    sellerName: 'Skyrun Authorized Partner',
-    isFlashSale: true,
-    isApproved: true,
-    brand: 'Skyrun',
-    createdAt: 1716900000000,
-    specifications: {
-      'Horsepower': '1.5 HP',
-      'Technology': 'Turbo Cooling and Energy Saver',
-      'Condenser': '100% Copper',
-      'Filter': 'Dual Antibacterial Filter',
-      'Refrigerant': 'R410A Eco-Friendly Gas'
-    },
-    reviews: [
-      { id: '1', userName: 'Emeka O.', rating: 5, comment: 'Very silent and cold! I can barely hear it running.', date: '2026-05-12' },
-      { id: '2', userName: 'Tunde S.', rating: 4, comment: 'Great product, works perfectly even on low voltage inverter power.', date: '2026-04-29' }
-    ]
-  },
-  {
     id: 'elec-tv-003',
     name: 'Samsung 55" UHD 4K Smart TV - Crystal Display with HDR10+',
     category: 'Electronics & Appliances',
@@ -274,33 +214,6 @@ export const INITIAL_PRODUCTS: Product[] = [
       'Volume': '3.8 Litres',
       'Type': '100% Soya & Vegetable Extract',
       'Packaging': 'Ergonomic Plastic Canister'
-    }
-  },
-  {
-    id: 'hea-cos-008',
-    name: 'Nivea Pearl & Beauty Roll-On Deodorant - 48h Protection (Pack of 3)',
-    category: 'Health & Beauty',
-    price: 8500,
-    originalPrice: 12000,
-    discount: 29,
-    imageUrl: 'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?auto=format&fit=crop&w=600&q=80',
-    rating: 4.8,
-    reviewsCount: 142,
-    description: 'Nivea Pearl & Beauty Roll-on protects you for up to 48 hours from sweat and body odor while giving your underarms an even skin tone after hair removal.',
-    stock: 80,
-    sellerId: 'quxbashop@gmail.com',
-    sellerName: 'Quxba Official Store',
-    isFlashSale: false,
-    isApproved: true,
-    addedByAdmin: true,
-    adminId: 'quxbashop@gmail.com',
-    brand: 'Nivea',
-    createdAt: 1717250000000,
-    specifications: {
-      'Volume': '50ml x 3',
-      'Protection Duration': '48 Hours',
-      'Skin Type': 'All Skin Types',
-      'Fragrance': 'Pearl Extract Gentle Floral'
     }
   }
 ];

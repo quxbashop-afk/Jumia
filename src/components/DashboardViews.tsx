@@ -323,8 +323,7 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct, ca
   const [fullscreenPreviewImage, setFullscreenPreviewImage] = useState<string | null>(null);
 
   const isSkuValid = (sku: string) => {
-    if (!sku) return true;
-    return /^[a-zA-Z0-9]+-[0-9]+-[a-zA-Z0-9]+$/.test(sku);
+    return true; // Any custom SKU pattern is accepted and valid!
   };
 
   // Product Options and Variants states
@@ -1854,8 +1853,8 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct, ca
                     <div className="flex justify-between items-center mb-1.5">
                       <label className="block text-[9.5px] font-black text-gray-500 uppercase">SKU (Stock Keeping Unit)</label>
                       {inventorySku && (
-                        <span className={`text-[9.5px] font-bold uppercase tracking-wider ${isSkuValid(inventorySku) ? 'text-emerald-600' : 'text-rose-600'}`}>
-                          {isSkuValid(inventorySku) ? '✓ Valid Format' : '✗ Invalid Format'}
+                        <span className="text-[9.5px] font-bold uppercase tracking-wider text-emerald-600">
+                          ✓ Format Accepted
                         </span>
                       )}
                     </div>
@@ -1867,16 +1866,9 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct, ca
                       className={`w-full bg-white border rounded px-2.5 py-2 text-xs focus:ring-1 focus:outline-none font-bold font-mono transition ${
                         !inventorySku 
                           ? 'border-gray-200 focus:ring-black focus:border-black' 
-                          : isSkuValid(inventorySku) 
-                            ? 'border-emerald-300 focus:ring-emerald-500 focus:border-emerald-500 bg-emerald-50/25' 
-                            : 'border-rose-300 focus:ring-rose-500 focus:border-rose-500 bg-rose-50/25'
+                          : 'border-emerald-300 focus:ring-emerald-500 focus:border-emerald-500 bg-emerald-50/25'
                       }`}
                     />
-                    {inventorySku && !isSkuValid(inventorySku) && (
-                      <p className="text-[9.5px] text-rose-500 font-bold mt-1 leading-snug">
-                        Must follow prefix-numeric-suffix format (e.g., QUX-450-XL).
-                      </p>
-                    )}
                   </div>
 
                   {/* Stock Limit Option (Unlimited vs numerical state) */}

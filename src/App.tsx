@@ -10,7 +10,6 @@ import FlashSales from './components/FlashSales';
 import ProductCard from './components/ProductCard';
 import CartDrawer from './components/CartDrawer';
 import WishlistDrawer from './components/WishlistDrawer';
-import ScamShieldDrawer from './components/ScamShieldDrawer';
 import ProductDetailModal from './components/ProductDetailModal';
 import QuickViewModal from './components/QuickViewModal';
 import CheckoutView from './components/CheckoutView';
@@ -51,6 +50,8 @@ import {
   supabaseUpdateOrderStatus
 } from './supabase';
 
+const ADMIN_RESTRICTED_PRODUCTS = INITIAL_PRODUCTS;
+
 export default function App() {
   // Syncing States to Client-Side Local Storage & Firebase Firestore
   const [products, setProducts] = useState<Product[]>(() => {
@@ -63,7 +64,7 @@ export default function App() {
         }
       }
     } catch (e) {}
-    return INITIAL_PRODUCTS;
+    return ADMIN_RESTRICTED_PRODUCTS;
   });
   const [productToConfirmDelete, setProductToConfirmDelete] = useState<Product | null>(null);
   const [deletedProductIds, setDeletedProductIds] = useState<string[]>(() => {
@@ -78,7 +79,6 @@ export default function App() {
     } catch (e) {}
     return [];
   });
-  const [firestoreQuotaExceeded, setFirestoreQuotaExceeded] = useState(true);
 
   const visibleProducts = products.filter(p => !deletedProductIds.includes(p.id));
 
@@ -404,48 +404,47 @@ export default function App() {
       const fetchSupabaseProducts = async () => {
         try {
           const prodList = await supabaseGetProducts();
+          const staleIds = ['elec-ref-001', 'elec-ac-002', 'hea-cos-008', 'daily-deal-ref-nexus'];
+          
           if (prodList && prodList.length > 0) {
+            // One-time deletion cleanup from Supabase tables for deleted base items
+            const foundStale = prodList.some((p: any) => staleIds.includes(p.id));
+            if (foundStale) {
+              console.log("[Supabase Sync] Cleaning up stale pre-seeded products across the database:", staleIds);
+              for (const staleId of staleIds) {
+                try {
+                  await supabase.from('products').delete().eq('id', staleId);
+                } catch (delErr) {
+                  console.warn(`Could not erase legacy item ${staleId}:`, delErr);
+                }
+              }
+            }
+
             let formatted = prodList.map((p: any) => ({
               ...p,
               createdAt: p.created_at ? new Date(p.created_at).getTime() : Date.now(),
             }));
+            
+            // Filter stale pre-seeded legacy items completely
+            formatted = formatted.filter((p: any) => p && p.id && !staleIds.includes(p.id));
 
-            // Ensure Nivea product exists
-            const hasNivea = formatted.some(p => p.id === 'hea-cos-008');
-            if (!hasNivea) {
-              const niveaItem = INITIAL_PRODUCTS.find(p => p.id === 'hea-cos-008');
-              if (niveaItem) {
-                formatted = [...formatted, niveaItem];
-                try {
-                  await supabaseAddProduct(niveaItem);
-                } catch (addErr) {}
-              }
-            }
-
-            // Programmatically clean up non-admin uploaded products/images for quxbashop@gmail.com admin
-            if (currentUser?.email === 'quxbashop@gmail.com') {
-              const cleanList = formatted.filter((p: any) => {
-                const isInitial = INITIAL_PRODUCTS.some(ip => ip.id === p.id);
-                const isFromAdmin = p.addedByAdmin === true || p.adminId === 'quxbashop@gmail.com';
-                return isInitial || isFromAdmin;
-              });
-
-              const unauthorized = formatted.filter((p: any) => {
-                const isInitial = INITIAL_PRODUCTS.some(ip => ip.id === p.id);
-                const isFromAdmin = p.addedByAdmin === true || p.adminId === 'quxbashop@gmail.com';
-                return !isInitial && !isFromAdmin;
-              });
-
-              for (const unAuth of unauthorized) {
-                try {
-                  await supabase.from('products').delete().eq('id', unAuth.id);
-                } catch (err) {
-                  console.warn("Supabase Autoclean cleanup error:", err);
+            // Merge with local-only fallback products so user added items are NEVER overwritten or deleted by database synchronizations
+            try {
+              const saved = localStorage.getItem('quxba_local_products');
+              if (saved) {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed)) {
+                  parsed.forEach((localProd: any) => {
+                    if (localProd && localProd.id && !staleIds.includes(localProd.id)) {
+                      const exists = formatted.some((p: any) => p.id === localProd.id);
+                      if (!exists) {
+                        formatted.push(localProd);
+                      }
+                    }
+                  });
                 }
               }
-
-              formatted = cleanList;
-            }
+            } catch (mergeErr) {}
 
             detectChanges(formatted);
             setProducts(formatted);
@@ -453,27 +452,49 @@ export default function App() {
               localStorage.setItem('quxba_local_products', JSON.stringify(formatted));
             } catch (e) {}
           } else {
-            // Auto-seeding default catalog to Supabase if it is empty to ensure real persistent records
+            // Auto-seeding initial products when database is black
             const emailInStorage = localStorage.getItem('jumia_logged_in_user');
             const isAdmin = (emailInStorage && emailInStorage.toLowerCase().includes('quxbashop@gmail.com')) || 
                             (currentUser?.email && currentUser.email.toLowerCase() === 'quxbashop@gmail.com');
             if (isAdmin) {
-              console.log("[Supabase Product Sync] Products table is empty. Auto-seeding default catalog to Supabase...");
+              console.log("[Supabase Product Sync] Products table is empty. Auto-seeding initial products...");
               try {
-                for (const prod of INITIAL_PRODUCTS) {
-                  await supabaseAddProduct({
-                    ...prod,
-                    addedByAdmin: true,
-                    isApproved: true,
-                    adminId: 'quxbashop@gmail.com'
-                  });
+                for (const item of INITIAL_PRODUCTS) {
+                  try {
+                    await supabaseAddProduct({
+                      ...item,
+                      addedByAdmin: true,
+                      isApproved: true,
+                      adminId: 'quxbashop@gmail.com'
+                    });
+                  } catch (e) {}
                 }
                 const updatedList = await supabaseGetProducts();
                 if (updatedList && updatedList.length > 0) {
-                  const formatted = updatedList.map((p: any) => ({
+                  let formatted = updatedList.map((p: any) => ({
                     ...p,
                     createdAt: p.created_at ? new Date(p.created_at).getTime() : Date.now(),
                   }));
+                  formatted = formatted.filter((p: any) => p && p.id && !staleIds.includes(p.id));
+                  
+                  // Merge local Fallbacks here too
+                  try {
+                    const saved = localStorage.getItem('quxba_local_products');
+                    if (saved) {
+                      const parsed = JSON.parse(saved);
+                      if (Array.isArray(parsed)) {
+                        parsed.forEach((localProd: any) => {
+                          if (localProd && localProd.id && !staleIds.includes(localProd.id)) {
+                            const exists = formatted.some((p: any) => p.id === localProd.id);
+                            if (!exists) {
+                              formatted.push(localProd);
+                            }
+                          }
+                        });
+                      }
+                    }
+                  } catch (mergeErr) {}
+
                   detectChanges(formatted);
                   setProducts(formatted);
                   try {
@@ -482,14 +503,14 @@ export default function App() {
                   return;
                 }
               } catch (seedErr) {
-                console.warn("[Supabase Product Sync] Seeding default catalog error:", seedErr);
+                console.warn("[Supabase Product Sync] Seeding index error:", seedErr);
               }
             }
-            setProducts(INITIAL_PRODUCTS);
+            setProducts(ADMIN_RESTRICTED_PRODUCTS);
           }
         } catch (e) {
           console.warn("Supabase products load issue:", e);
-          setProducts(INITIAL_PRODUCTS);
+          setProducts(ADMIN_RESTRICTED_PRODUCTS);
         }
       };
 
@@ -513,40 +534,25 @@ export default function App() {
       // Offline / Local storage fallback products loader
       try {
         const saved = localStorage.getItem('quxba_local_products');
-        let currentProds = INITIAL_PRODUCTS;
+        let currentProds = ADMIN_RESTRICTED_PRODUCTS;
         if (saved) {
           const parsed = JSON.parse(saved);
           if (Array.isArray(parsed) && parsed.length > 0) {
             currentProds = parsed;
           }
         }
+        
+        // Filter out stale IDs from offline fallback state
+        const staleIds = ['elec-ref-001', 'elec-ac-002', 'hea-cos-008', 'daily-deal-ref-nexus'];
+        currentProds = currentProds.filter((p: any) => p && p.id && !staleIds.includes(p.id));
 
-        // Ensure Nivea product exists (restore it back under admin settings)
-        const hasNivea = currentProds.some(p => p.id === 'hea-cos-008');
-        if (!hasNivea) {
-          const niveaItem = INITIAL_PRODUCTS.find(p => p.id === 'hea-cos-008');
-          if (niveaItem) {
-            currentProds = [...currentProds, niveaItem];
-          }
-        }
-
-        // Programmatically clean up non-admin uploaded products/images for quxbashop@gmail.com admin
-        let finalProds = currentProds;
-        if (currentUser?.email === 'quxbashop@gmail.com') {
-          finalProds = currentProds.filter((p: any) => {
-            const isInitial = INITIAL_PRODUCTS.some(ip => ip.id === p.id);
-            const isFromAdmin = p.addedByAdmin === true || p.adminId === 'quxbashop@gmail.com';
-            return isInitial || isFromAdmin;
-          });
-        }
-
-        detectChanges(finalProds);
-        setProducts(finalProds);
+        detectChanges(currentProds);
+        setProducts(currentProds);
         try {
-          localStorage.setItem('quxba_local_products', JSON.stringify(finalProds));
+          localStorage.setItem('quxba_local_products', JSON.stringify(currentProds));
         } catch (e) {}
       } catch (e) {
-        setProducts(INITIAL_PRODUCTS);
+        setProducts(ADMIN_RESTRICTED_PRODUCTS);
       }
     }
   }, [currentUser]);
@@ -913,7 +919,6 @@ export default function App() {
   // Drawer / overlay triggers
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isWishlistOpen, setIsWishlistOpen] = useState(false);
-  const [isScamShieldOpen, setIsScamShieldOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   useEffect(() => {
@@ -1292,20 +1297,21 @@ export default function App() {
     });
     addToast('Product Added', `"${sanitizedProduct.name}" was successfully registered offline as a listing.`, 'info');
 
+    // Always save to localStorage immediately to guarantee new merchant listings never disappear or get wiped
+    try {
+      const saved = localStorage.getItem('quxba_local_products');
+      const currentList = saved ? JSON.parse(saved) : ADMIN_RESTRICTED_PRODUCTS;
+      const updatedList = [sanitizedProduct, ...currentList.filter((p: any) => p.id !== sanitizedProduct.id)];
+      localStorage.setItem('quxba_local_products', JSON.stringify(updatedList));
+    } catch (error) {
+      console.warn("Local product creation sync warning:", error);
+    }
+
     if (isSupabaseEnabled) {
       try {
         await supabaseAddProduct(sanitizedProduct);
       } catch (error) {
-        console.warn("Supabase product insert failed:", error);
-      }
-    } else {
-      try {
-        const saved = localStorage.getItem('quxba_local_products');
-        const currentList = saved ? JSON.parse(saved) : INITIAL_PRODUCTS;
-        const updatedList = [sanitizedProduct, ...currentList.filter((p: any) => p.id !== sanitizedProduct.id)];
-        localStorage.setItem('quxba_local_products', JSON.stringify(updatedList));
-      } catch (error) {
-        console.warn("Local product creation warning:", error);
+        console.warn("Supabase product insert failed (using secure local backup instead):", error);
       }
     }
   };
@@ -1342,7 +1348,7 @@ export default function App() {
     } else {
       try {
         const saved = localStorage.getItem('quxba_local_products');
-        const currentList = saved ? JSON.parse(saved) : INITIAL_PRODUCTS;
+        const currentList = saved ? JSON.parse(saved) : ADMIN_RESTRICTED_PRODUCTS;
         const updatedList = currentList.filter((p: any) => p.id !== productId);
         localStorage.setItem('quxba_local_products', JSON.stringify(updatedList));
       } catch (error) {
@@ -1365,7 +1371,7 @@ export default function App() {
     } else {
       try {
         const saved = localStorage.getItem('quxba_local_products');
-        const currentList = saved ? JSON.parse(saved) : INITIAL_PRODUCTS;
+        const currentList = saved ? JSON.parse(saved) : ADMIN_RESTRICTED_PRODUCTS;
         const updatedList = currentList.map((p: any) => p.id === productId ? { ...p, isApproved: true, addedByAdmin: true } : p);
         localStorage.setItem('quxba_local_products', JSON.stringify(updatedList));
       } catch (error) {
@@ -1388,7 +1394,7 @@ export default function App() {
     } else {
       try {
         const saved = localStorage.getItem('quxba_local_products');
-        const currentList = saved ? JSON.parse(saved) : INITIAL_PRODUCTS;
+        const currentList = saved ? JSON.parse(saved) : ADMIN_RESTRICTED_PRODUCTS;
         const updatedList = currentList.filter((p: any) => p.id !== productId);
         localStorage.setItem('quxba_local_products', JSON.stringify(updatedList));
       } catch (error) {
@@ -1513,39 +1519,6 @@ export default function App() {
   return (
     <div className="flex flex-col min-h-screen bg-gray-100 text-gray-900 selection:bg-purple-200">
       
-      {firestoreQuotaExceeded && (
-        <div className="bg-amber-500 border-b border-amber-600 text-neutral-950 px-4 py-3 text-xs sm:text-sm font-medium relative shadow-sm z-[100] animate-fade-in animate-pulse-subtle">
-          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
-            <div className="flex items-center gap-2">
-              <span className="text-base select-none">⚠️</span>
-              <div>
-                <strong className="font-bold">Free Daily Firestore Quota Exceeded.</strong>{' '}
-                The application is now running seamlessly in high-availability offline/local fallback mode. 
-                All listings, orders, and categories are saved locally.
-              </div>
-            </div>
-            <div className="flex items-center gap-3 shrink-0">
-              <a
-                href="https://console.firebase.google.com/project/gen-lang-client-0721826624/firestore/databases/ai-studio-87550a97-6f38-4b73-898b-6848fc7a6d64/data?openUpgradeDialog=true"
-                target="_blank"
-                referrerPolicy="no-referrer"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 bg-neutral-950 text-white rounded px-3 py-1 text-xs font-bold hover:bg-neutral-800 transition shadow"
-              >
-                Upgrade Firestore / Request Quota Increase ↗
-              </a>
-              <button
-                onClick={() => setFirestoreQuotaExceeded(false)}
-                className="text-neutral-950 font-black hover:text-neutral-700 underline text-xs cursor-pointer"
-                title="Dismiss warning"
-                type="button"
-              >
-                Dismiss
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Universal Sticky Header */}
       <Header
@@ -2188,7 +2161,7 @@ export default function App() {
               onAddNewProduct={handleAddNewProductFromSeller}
               onDeleteProduct={handleDeleteProduct}
               categories={categories}
-              onQuotaExceeded={() => setFirestoreQuotaExceeded(true)}
+              onQuotaExceeded={() => {}}
             />
           ) : (
             <div className="bg-white rounded-xl shadow-md border border-neutral-100 p-8 max-w-md mx-auto text-center space-y-5 font-sans animate-fade-in my-10">
@@ -2386,15 +2359,6 @@ export default function App() {
         onMoveToCart={handleMoveToCart}
       />
 
-      <ScamShieldDrawer
-        isOpen={isScamShieldOpen}
-        onClose={() => setIsScamShieldOpen(false)}
-        orders={orders}
-        allProducts={visibleProducts}
-        onSelectProduct={(p) => setSelectedProduct(p)}
-        onToggleView={(v) => setCurrentView(v)}
-      />
-
       <ProductDetailModal
         product={selectedProduct ? visibleProducts.find(p => p.id === selectedProduct.id) || selectedProduct : null}
         onClose={() => setSelectedProduct(null)}
@@ -2437,27 +2401,6 @@ export default function App() {
           </button>
         </div>
       )}
-
-      {/* Floating active Cyber-Escrow ScamShield button */}
-      <div className="fixed bottom-24 right-4 md:right-8 z-40 group">
-        {/* Radar wave background */}
-        <span className="absolute inset-0 rounded-full bg-purple-600/35 animate-ping" />
-        <span className="absolute -inset-1 rounded-full bg-purple-500/10 animate-pulse" />
-        
-        <button
-          type="button"
-          onClick={() => setIsScamShieldOpen(true)}
-          className="relative flex items-center gap-2 bg-gradient-to-r from-purple-800 to-indigo-950 border border-purple-700 text-white font-black text-[11px] px-3.5 py-3 rounded-full hover:from-purple-700 hover:to-indigo-900 shadow-[0_4px_18px_rgba(124,58,237,0.35)] hover:shadow-[0_6px_22px_rgba(124,58,237,0.5)] active:scale-95 transition-all duration-200 cursor-pointer select-none"
-        >
-          <ShieldAlert className="w-4 h-4 text-purple-300 animate-bounce" />
-          <span className="max-w-px md:max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-500 ease-out font-mono tracking-widest uppercase inline-block whitespace-nowrap">
-            SECURE TRADE
-          </span>
-          <span className="font-mono text-[9px] bg-red-600 px-1.5 py-0.5 rounded-full text-white font-bold tracking-wider">
-            SHIELD
-          </span>
-        </button>
-      </div>
 
       {/* Quxba Mobile Bottom Sticky Tab Bar (Home | Categories | Cart | Wishlist | Account) */}
       <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 shadow-[0_-2px_10px_rgba(0,0,0,0.06)] h-[62px] flex items-center justify-around md:hidden px-1 select-none">

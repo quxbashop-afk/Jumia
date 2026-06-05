@@ -77,26 +77,26 @@ export function DailyDealCountdown({
   const { hours, minutes, seconds } = formatTime(timeLeft);
 
   // Pick a special premium product to be the highlight of the Daily Deal.
-  // We prefer items with large discounts and high ratings (e.g. smart watch, laptop, or refrigerator)
+  // We prefer items with large discounts and high ratings (e.g. Samsung Smart TV)
   const getDailyProduct = (): Product => {
     if (!products || products.length === 0) {
       // Fallback robust mock product in case list is not loaded yet
       return {
-        id: 'daily-deal-ref-nexus',
-        name: 'Nexus 250L Double Door Refrigerator - Premium Stainless Steel Accent',
+        id: 'elec-tv-003',
+        name: 'Samsung 55" UHD 4K Smart TV - Crystal Display with HDR10+',
         category: 'Electronics & Appliances',
-        price: 385000,
-        originalPrice: 480000,
+        price: 495000,
+        originalPrice: 620000,
         discount: 20,
-        imageUrl: 'https://images.unsplash.com/photo-1571875257727-256c3a8428e8?auto=format&fit=crop&w=600&q=80',
-        rating: 4.8,
-        reviewsCount: 164,
-        description: 'Elite home essential offering optimal cooling efficiency, custom stabilizer shield, noiseless operations and premium steel double-door frame structure.',
+        imageUrl: 'https://images.unsplash.com/photo-1593305841991-05c297ba4575?auto=format&fit=crop&w=600&q=80',
+        rating: 4.9,
+        reviewsCount: 220,
+        description: 'Experience pure ultra-high definition cinematic entertainment in Nigerian homes. Stream your favorite movies, sports, and YouTube flaws with native Smart Hub integration and dual Bluetooth connectivity.',
         stock: 12,
-        sellerId: 'sell-nexus-direct',
-        sellerName: 'Nexus Official Store',
+        sellerId: 'sell-samsung-concept',
+        sellerName: 'Samsung Direct Shop',
         isFlashSale: true,
-        brand: 'Nexus'
+        brand: 'Samsung'
       };
     }
 
