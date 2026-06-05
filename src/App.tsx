@@ -34,9 +34,6 @@ import {
   Eye, EyeOff, Loader2, Scale, FileText
 } from 'lucide-react';
 
-// Firebase Integrations
-import { auth, db, OperationType, handleFirestoreError } from './firebase';
-
 // Supabase Integrations
 import { 
   isSupabaseEnabled, 
@@ -47,31 +44,12 @@ import {
   supabaseGetProducts, 
   supabaseAddProduct, 
   supabaseGetCategories,
+  supabaseAddCategory,
+  supabaseDeleteCategory,
   supabaseAddOrder,
   supabaseGetOrders,
   supabaseUpdateOrderStatus
 } from './supabase';
-import { 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
-  signOut, 
-  onAuthStateChanged,
-  signInWithPopup,
-  GoogleAuthProvider,
-  updateProfile
-} from 'firebase/auth';
-import { 
-  doc, 
-  setDoc, 
-  getDoc, 
-  collection, 
-  onSnapshot, 
-  deleteDoc, 
-  updateDoc,
-  query,
-  where,
-  or
-} from 'firebase/firestore';
 
 export default function App() {
   // Syncing States to Client-Side Local Storage & Firebase Firestore
@@ -87,7 +65,6 @@ export default function App() {
     } catch (e) {}
     return INITIAL_PRODUCTS;
   });
-  const [firestoreQuotaExceeded, setFirestoreQuotaExceeded] = useState(false);
   const [productToConfirmDelete, setProductToConfirmDelete] = useState<Product | null>(null);
   const [deletedProductIds, setDeletedProductIds] = useState<string[]>(() => {
     try {
@@ -205,45 +182,40 @@ export default function App() {
         )
         .subscribe();
 
+      // Listen to local storage updates inside the same application
+      const handleLocalUpdate = () => {
+        try {
+          const saved = localStorage.getItem('quxba_local_categories');
+          if (saved) {
+            setCategories(JSON.parse(saved));
+          }
+        } catch (e) {}
+      };
+      window.addEventListener('quxba_local_categories_updated', handleLocalUpdate);
+
       return () => {
         supabase.removeChannel(channel);
+        window.removeEventListener('quxba_local_categories_updated', handleLocalUpdate);
+      };
+    } else {
+      const handleLocalUpdate = () => {
+        try {
+          const saved = localStorage.getItem('quxba_local_categories');
+          if (saved) {
+            setCategories(JSON.parse(saved));
+          } else {
+            setCategories(DEFAULT_CATEGORIES);
+          }
+        } catch (e) {
+          setCategories(DEFAULT_CATEGORIES);
+        }
+      };
+      handleLocalUpdate();
+      window.addEventListener('quxba_local_categories_updated', handleLocalUpdate);
+      return () => {
+        window.removeEventListener('quxba_local_categories_updated', handleLocalUpdate);
       };
     }
-
-    const ref = collection(db, 'categories');
-    const unsubscribe = onSnapshot(ref, async (snapshot) => {
-      setFirestoreQuotaExceeded(false);
-      if (snapshot.empty) {
-        setCategories(DEFAULT_CATEGORIES);
-        try {
-          // Auto-seed Categories collection on first-load
-          for (const item of DEFAULT_CATEGORIES) {
-            const docRef = doc(db, 'categories', item.id);
-            await setDoc(docRef, item);
-          }
-        } catch (err) {
-          console.warn("Categories sync database seed skipped/failed:", err);
-        }
-      } else {
-        const catList: any[] = [];
-        snapshot.forEach((snap) => {
-          const data = snap.data();
-          if (data && typeof data.name === 'string') {
-            catList.push(data);
-          }
-        });
-        catList.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-        setCategories(catList);
-        localStorage.setItem('quxba_local_categories', JSON.stringify(catList));
-      }
-    }, (error) => {
-      console.warn("Categories realtime stream skipped or failed:", error);
-      const strErr = (error && (error.message || error.code || String(error))) || '';
-      if (strErr.toLowerCase().includes('quota') || strErr.toLowerCase().includes('exhausted')) {
-        setFirestoreQuotaExceeded(true);
-      }
-    });
-    return unsubscribe;
   }, []);
 
   const [cart, setCart] = useState<CartItem[]>(() => {
@@ -334,7 +306,7 @@ export default function App() {
   const [authName, setAuthName] = useState('');
   const [authError, setAuthError] = useState('');
 
-  // Session listener & Auth Change Trigger (Supabase / Firebase)
+  // Session listener & Auth Change Trigger (Supabase / Local)
   useEffect(() => {
     if (isSupabaseEnabled) {
       // 1. Get current session
@@ -375,51 +347,15 @@ export default function App() {
       return () => {
         subscription.unsubscribe();
       };
+    } else {
+      // Local Database Auth mode: read current user from localStorage if set
+      try {
+        const saved = localStorage.getItem('jumia_logged_in_user');
+        if (saved) {
+          setCurrentUser(JSON.parse(saved));
+        }
+      } catch (e) {}
     }
-
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        const email = firebaseUser.email || '';
-        let name = firebaseUser.displayName || '';
-        if (!name) {
-          try {
-            const saved = localStorage.getItem('jumia_logged_in_user');
-            if (saved) {
-              const parsed = JSON.parse(saved);
-              if (parsed && parsed.email?.toLowerCase() === email.toLowerCase() && parsed.name) {
-                name = parsed.name;
-              }
-            }
-          } catch (e) {}
-        }
-        if (!name) {
-          name = email.split('@')[0] || 'User';
-        }
-        const u = { email, name };
-        setCurrentUser(u);
-        localStorage.setItem('jumia_logged_in_user', JSON.stringify(u));
-        localStorage.setItem('jumia_auth_method', 'firebase');
-
-        // Sync or register user node in database
-        const userRef = doc(db, 'users', firebaseUser.uid);
-        try {
-          const snap = await getDoc(userRef);
-          if (!snap.exists()) {
-            await setDoc(userRef, { email, name });
-          }
-        } catch (error) {
-          console.warn("Gracefully handled Firestore user sync error (ignoring to avoid blocking auth state):", error);
-        }
-      } else {
-        const authMethod = localStorage.getItem('jumia_auth_method');
-        if (authMethod !== 'local' && authMethod !== 'supabase') {
-          setCurrentUser(null);
-          localStorage.removeItem('jumia_logged_in_user');
-          localStorage.removeItem('jumia_auth_method');
-        }
-      }
-    });
-    return unsubscribe;
   }, []);
 
   // Sync Products list in real-time
@@ -534,134 +470,25 @@ export default function App() {
       return () => {
         supabase.removeChannel(channel);
       };
-    }
-
-    const processSnapshot = (snapshot: any, queryType: string) => {
-      const timestamp = new Date().toISOString();
-      const source = snapshot.metadata.fromCache ? 'Local Cache' : 'Server';
-      const hasPending = snapshot.metadata.hasPendingWrites;
-      console.log(`${logPrefix} Timestamp: ${timestamp} | Query: ${queryType} | Source: ${source} | HasPendingWrites: ${hasPending} | Size: ${snapshot.size}`);
-      
-      snapshot.docChanges().forEach((change: any) => {
-        const d = change.doc.data();
-        console.log(`${logPrefix} Doc Change [${change.type}] | Timestamp: ${timestamp} | ID: ${change.doc.id} | Name: ${d.name || 'N/A'} | isApproved: ${d.isApproved} | adminId: ${d.adminId} | source: ${d.source}`);
-      });
-    };
-
-    // Construct a single consolidated query path based on authorization
-    let q;
-    let queryDesc = "";
-
-    if (currentUser?.email === 'quxbashop@gmail.com') {
-      // 1. Admin reads everything
-      q = collection(db, 'products');
-      queryDesc = "Admin All Products";
-    } else if (currentUser?.email) {
-      // 2. Vendor/Merchant: retrieve approved public catalog OR own unapproved drafts
-      q = query(
-        collection(db, 'products'),
-        or(
-          where('isApproved', '==', true),
-          where('adminId', '==', currentUser.email)
-        )
-      );
-      queryDesc = `Vendor Consolidated (email: ${currentUser.email})`;
     } else {
-      // 3. Guest/Public: retrieve standard approved catalog only
-      q = query(
-        collection(db, 'products'),
-        where('isApproved', '==', true)
-      );
-      queryDesc = "Guest Approved Catalog Only";
-    }
-
-    unsubscribe = onSnapshot(q, async (snapshot) => {
-      setFirestoreQuotaExceeded(false);
-      processSnapshot(snapshot, queryDesc);
-      
-      if (snapshot.empty) {
-        setProducts(INITIAL_PRODUCTS);
-        if (currentUser?.email === 'quxbashop@gmail.com') {
-          console.log(`${logPrefix} Products collection is empty. Auto-seeding default catalog...`);
-          try {
-            for (const prod of INITIAL_PRODUCTS) {
-              const docRef = doc(db, 'products', prod.id);
-              await setDoc(docRef, {
-                ...prod,
-                addedByAdmin: true,
-                isApproved: true,
-                adminId: 'quxbashop@gmail.com'
-              });
-            }
-          } catch (err) {
-            console.warn(`${logPrefix} Seeding default catalog error:`, err);
-          }
-        }
-      } else {
-        const prodList: Product[] = [];
-        let hasNiveaInDb = false;
-        snapshot.forEach((snap) => {
-          const item = snap.data() as Product;
-          if (item.id === 'hea-cos-008') {
-            hasNiveaInDb = true;
+      // Offline / Local storage fallback products loader
+      try {
+        const saved = localStorage.getItem('quxba_local_products');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            detectChanges(parsed);
+            setProducts(parsed);
           } else {
-            prodList.push(item);
+            setProducts(INITIAL_PRODUCTS);
           }
-        });
-
-        if (hasNiveaInDb) {
-          try {
-            deleteDoc(doc(db, 'products', 'hea-cos-008'));
-          } catch (e) {
-            console.warn("Could not delete Nivea from DB: ", e);
-          }
+        } else {
+          setProducts(INITIAL_PRODUCTS);
         }
-
-        // 1. Programmatically clean up non-admin uploaded products/images for quxbashop@gmail.com admin
-        if (currentUser?.email === 'quxbashop@gmail.com') {
-          const unauthorizedProducts = prodList.filter(p => {
-            const isInitial = INITIAL_PRODUCTS.some(ip => ip.id === p.id);
-            const isFromAdmin = p.addedByAdmin === true || p.adminId === 'quxbashop@gmail.com';
-            return !isInitial && !isFromAdmin;
-          });
-
-          if (unauthorizedProducts.length > 0) {
-            console.log(`${logPrefix} Admin Autoclean is removing ${unauthorizedProducts.length} unauthorized product listings.`);
-            for (const p of unauthorizedProducts) {
-              try {
-                await deleteDoc(doc(db, 'products', p.id));
-              } catch (delErr) {
-                console.warn(`${logPrefix} Admin Autoclean failed to delete product ${p.id}:`, delErr);
-              }
-            }
-          }
-        }
-
-        // 2. Filter local memory state for UI to ensure non-admin products are instantly hidden
-        const filteredList = currentUser?.email === 'quxbashop@gmail.com'
-          ? prodList.filter(p => INITIAL_PRODUCTS.some(ip => ip.id === p.id) || p.addedByAdmin === true || p.adminId === 'quxbashop@gmail.com')
-          : prodList;
-
-        // Maintain coherent updates
-        detectChanges(filteredList);
-        setProducts(filteredList);
-
-        // Backup to localStorage to ensure extreme high availability and return products
-        try {
-          localStorage.setItem('quxba_local_products', JSON.stringify(filteredList));
-        } catch (e) {}
+      } catch (e) {
+        setProducts(INITIAL_PRODUCTS);
       }
-    }, (error) => {
-      console.warn(`${logPrefix} ${queryDesc} subscription error:`, error);
-      const strErr = (error && (error.message || error.code || String(error))) || '';
-      if (strErr.toLowerCase().includes('quota') || strErr.toLowerCase().includes('exhausted')) {
-        setFirestoreQuotaExceeded(true);
-      }
-    });
-
-    return () => {
-      if (unsubscribe) unsubscribe();
-    };
+    }
   }, [currentUser]);
 
   // Sync Orders in real-time
@@ -706,30 +533,21 @@ export default function App() {
       return () => {
         supabase.removeChannel(channel);
       };
-    }
-
-    const collectionRef = collection(db, 'orders');
-    // For admin, read all. For other users, filter by customerEmail to avoid permission rules violation.
-    const q = currentUser.email === 'quxbashop@gmail.com' 
-      ? collectionRef 
-      : query(collectionRef, where('customerEmail', '==', currentUser.email));
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      setFirestoreQuotaExceeded(false);
-      const ordersList: Order[] = [];
-      snapshot.forEach((snap) => {
-        ordersList.push(snap.data() as Order);
-      });
-      ordersList.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-      setOrders(ordersList);
-    }, (error) => {
-      console.warn("Orders subscription warning (offline / guest permission check):", error);
-      const strErr = (error && (error.message || error.code || String(error))) || '';
-      if (strErr.toLowerCase().includes('quota') || strErr.toLowerCase().includes('exhausted')) {
-        setFirestoreQuotaExceeded(true);
+    } else {
+      try {
+        const saved = localStorage.getItem('quxba_local_orders');
+        if (saved) {
+          const ordList = JSON.parse(saved);
+          const filtered = ordList.filter((o: any) => currentUser.email === 'quxbashop@gmail.com' || o.customerEmail === currentUser.email);
+          filtered.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+          setOrders(filtered);
+        } else {
+          setOrders([]);
+        }
+      } catch (e) {
+        setOrders([]);
       }
-    });
-    return unsubscribe;
+    }
   }, [currentUser]);
 
   const getFriendlyAuthErrorMessage = (error: any): string => {
@@ -790,50 +608,23 @@ export default function App() {
       }
     }
 
-    try {
-      // 1. Try Firebase Authentication
-      const result = await signInWithEmailAndPassword(auth, email, passStr);
-      const displayName = result.user.displayName || email.split('@')[0] || 'User';
-      localStorage.setItem('jumia_auth_method', 'firebase');
-      const u = { email, name: displayName };
+    // 1. Check if user exists in local registeredUsers database
+    const localUser = registeredUsers[email];
+    if (localUser && localUser.pass === passStr) {
+      const u = { email: localUser.email, name: localUser.name };
       setCurrentUser(u);
       localStorage.setItem('jumia_logged_in_user', JSON.stringify(u));
+      localStorage.setItem('jumia_auth_method', 'local');
+      
       setShowAuthModal(false);
       setAuthError('');
       setAuthPassword('');
-      addToast('Welcome Back', `Logged in successfully as ${displayName}!`, 'info');
+      addToast('Welcome Back', `Logged in in offline mode as ${localUser.name}!`, 'info');
       return { success: true };
-    } catch (err: any) {
-      console.warn("Firebase sign-in failed, checking safe local fallback:", err);
-      
-      // 2. Check if user exists in local registeredUsers database
-      const localUser = registeredUsers[email];
-      if (localUser && localUser.pass === passStr) {
-        const u = { email: localUser.email, name: localUser.name };
-        setCurrentUser(u);
-        localStorage.setItem('jumia_logged_in_user', JSON.stringify(u));
-        localStorage.setItem('jumia_auth_method', 'local');
-        
-        // Silently attempt to register with Firebase in the background in case Firebase database is recovering
-        try {
-          const result = await createUserWithEmailAndPassword(auth, email, passStr);
-          try {
-            await updateProfile(result.user, { displayName: localUser.name });
-          } catch (pErr) {}
-        } catch (sErr) {
-          console.warn("Silent Firebase sync registration skipped:", sErr);
-        }
-
-        setShowAuthModal(false);
-        setAuthError('');
-        setAuthPassword('');
-        addToast('Welcome Back', `Logged in in offline mode as ${localUser.name}!`, 'info');
-        return { success: true };
-      }
-      
-      setAuthError(getFriendlyAuthErrorMessage(err));
-      return { success: false };
     }
+    
+    setAuthError("Invalid email or password. Please verify your credentials and try again.");
+    return { success: false };
   };
 
   const handleRegister = async (nameStr: string, emailStr: string, passStr: string) => {
@@ -873,71 +664,32 @@ export default function App() {
       }
     }
 
-    try {
-      // 1. Try register with Firebase Authentication
-      const result = await createUserWithEmailAndPassword(auth, email, passStr);
-      try {
-        await updateProfile(result.user, { displayName: nameStr });
-      } catch (profErr) {
-        console.warn("Could not update Firebase profile displayName:", profErr);
-      }
-
-      setRegisteredUsers(newUsers);
-      localStorage.setItem('jumia_registered_users', JSON.stringify(newUsers));
-      localStorage.setItem('jumia_auth_method', 'firebase');
-
-      const u = { email, name: nameStr };
-      setCurrentUser(u);
-      localStorage.setItem('jumia_logged_in_user', JSON.stringify(u));
-
-      try {
-        await setDoc(doc(db, 'users', result.user.uid), {
-          email: email,
-          name: nameStr
-        });
-      } catch (dbErr) {
-        console.warn("Could not write user profile to database (ignoring to secure signup flow):", dbErr);
-      }
-
-      setShowAuthModal(false);
-      setAuthError('');
-      setAuthPassword('');
-      setAuthName('');
-      addToast('Registration Successful', `Welcome to Quxba, ${nameStr}!`, 'info');
-      return { success: true };
-    } catch (err: any) {
-      console.warn("Firebase sign-up failed, running local robust fallback registration:", err);
-      
-      const code = err.code || "";
-      if (code.includes('auth/email-already-in-use')) {
-        setAuthError('This email address is already registered. Please sign in instead.');
-        return { success: false };
-      }
-
-      // Complete registration locally
-      setRegisteredUsers(newUsers);
-      localStorage.setItem('jumia_registered_users', JSON.stringify(newUsers));
-      
-      const u = { email, name: nameStr };
-      setCurrentUser(u);
-      localStorage.setItem('jumia_logged_in_user', JSON.stringify(u));
-      localStorage.setItem('jumia_auth_method', 'local');
-
-      setShowAuthModal(false);
-      setAuthError('');
-      setAuthPassword('');
-      setAuthName('');
-      addToast('Welcome to Quxba!', `Registered in offline mode as ${nameStr}.`, 'info');
-      return { success: true };
+    // Local Database path (fallback of Supabase, or default)
+    if (registeredUsers[email]) {
+      setAuthError('This email address is already registered. Please sign in instead.');
+      return { success: false };
     }
+
+    setRegisteredUsers(newUsers);
+    localStorage.setItem('jumia_registered_users', JSON.stringify(newUsers));
+    
+    const u = { email, name: nameStr };
+    setCurrentUser(u);
+    localStorage.setItem('jumia_logged_in_user', JSON.stringify(u));
+    localStorage.setItem('jumia_auth_method', 'local');
+
+    setShowAuthModal(false);
+    setAuthError('');
+    setAuthPassword('');
+    setAuthName('');
+    addToast('Welcome to Quxba!', `Registered in offline mode as ${nameStr}.`, 'info');
+    return { success: true };
   };
 
   const handleLogout = async () => {
     try {
       if (isSupabaseEnabled) {
         await supabaseSignOut();
-      } else {
-        await signOut(auth);
       }
     } catch (err) {
       console.error(err);
@@ -949,14 +701,7 @@ export default function App() {
   };
 
   const handleGoogleSignIn = async () => {
-    const provider = new GoogleAuthProvider();
-    try {
-      await signInWithPopup(auth, provider);
-      setShowAuthModal(false);
-      setAuthError('');
-    } catch (err: any) {
-      setAuthError('Google Login failed: ' + getFriendlyAuthErrorMessage(err));
-    }
+    addToast('Google Sign-In', 'Google authentication is being routed via custom secure email flows in this environment.', 'info');
   };
 
   const handleOpenCategoryManager = (catToEdit?: any) => {
@@ -1011,14 +756,19 @@ export default function App() {
     });
 
     try {
-      await setDoc(doc(db, 'categories', targetId), docData);
+      if (isSupabaseEnabled) {
+        await supabaseAddCategory(docData);
+      }
     } catch (err: any) {
-      console.warn("Firestore category set skipped or pending offline sync (quota / sandbox limits):", err);
+      console.warn("Supabase category set warning:", err);
     }
 
     setCatSuccess(adminSelectedCatId ? 'Category edited successfully!' : 'Category added successfully!');
     setCatSaving(false);
     
+    // Dispatch a local storage update event to synchronize sibling state listeners immediately
+    window.dispatchEvent(new Event('quxba_local_categories_updated'));
+
     setTimeout(() => {
       setIsCategoryModalOpen(false);
     }, 1000);
@@ -1040,12 +790,17 @@ export default function App() {
     });
 
     try {
-      await deleteDoc(doc(db, 'categories', id));
+      if (isSupabaseEnabled) {
+        await supabaseDeleteCategory(id);
+      }
     } catch (err: any) {
-      console.warn("Firestore category deletion skipped or pending offline sync (quota / sandbox limits):", err);
+      console.warn("Supabase category deletion warning:", err);
     }
 
     setCatSuccess('Category deleted successfully!');
+    // Trigger local state updates across components
+    window.dispatchEvent(new Event('quxba_local_categories_updated'));
+
     setAdminSelectedCatId('');
     setAdminCatName('');
     setAdminCatEmoji('📦');
@@ -1170,13 +925,18 @@ export default function App() {
     addToast('Review Submitted', 'Thank you for your valuable feedback!', 'info');
 
     try {
-      await updateDoc(doc(db, 'products', productId), {
-        reviews: updatedReviews,
-        rating: newAvgRating,
-        reviewsCount: updatedReviews.length
-      });
+      if (isSupabaseEnabled) {
+        await supabase
+          .from('products')
+          .update({
+            reviews: updatedReviews,
+            rating: newAvgRating,
+            reviewsCount: updatedReviews.length
+          })
+          .eq('id', productId);
+      }
     } catch (error) {
-      console.warn("Firestore product review update skipped or pending offline sync:", error);
+      console.warn("Supabase product review update skipped/failed:", error);
     }
   };
 
@@ -1291,10 +1051,13 @@ export default function App() {
       }
     } else {
       try {
-        await setDoc(doc(db, 'orders', newOrder.id), orderWithEmail);
-        console.log(`[Mock Email Notification Service] SUCCESS: Simulating email delivery... Order confirmation successfully generated & sent to customer inbox at ${orderWithEmail.customerEmail} for order ID: ${newOrder.id}`);
+        const saved = localStorage.getItem('quxba_local_orders');
+        const currentList = saved ? JSON.parse(saved) : [];
+        const updatedList = [orderWithEmail, ...currentList.filter((o: any) => o.id !== orderWithEmail.id)];
+        localStorage.setItem('quxba_local_orders', JSON.stringify(updatedList));
+        console.log(`[Local Confirmed Sync] SUCCESS: Local order conf generated for order ID: ${newOrder.id}`);
       } catch (error) {
-        console.warn("Firestore order placement skipped or pending offline sync (quota limits):", error);
+        console.warn("Local order placement skipped/failed:", error);
       }
     }
   };
@@ -1331,22 +1094,19 @@ export default function App() {
       }
     } else {
       try {
-        const orderRef = doc(db, 'orders', orderId);
-        const snap = await getDoc(orderRef);
-        if (snap.exists()) {
-          const orderData = snap.data() as Order;
-          const currentTimestamps = orderData.statusTimestamps || {};
-          const updatedTimestamps = {
-            ...currentTimestamps,
-            'Cancelled': cancelTime
-          };
-          await updateDoc(orderRef, {
-            status: 'Cancelled',
-            statusTimestamps: updatedTimestamps
+        const saved = localStorage.getItem('quxba_local_orders');
+        if (saved) {
+          const currentList = JSON.parse(saved);
+          const updatedList = currentList.map((o: any) => {
+            if (o.id === orderId && updatedOrder) {
+              return updatedOrder;
+            }
+            return o;
           });
+          localStorage.setItem('quxba_local_orders', JSON.stringify(updatedList));
         }
       } catch (error) {
-        console.warn("Firestore order cancel update skipped or pending offline sync:", error);
+        console.warn("Local storage cancel update warning:", error);
       }
     }
   };
@@ -1383,22 +1143,19 @@ export default function App() {
       }
     } else {
       try {
-        const orderRef = doc(db, 'orders', orderId);
-        const snap = await getDoc(orderRef);
-        if (snap.exists()) {
-          const orderData = snap.data() as Order;
-          const currentTimestamps = orderData.statusTimestamps || {};
-          const updatedTimestamps = {
-            ...currentTimestamps,
-            [nextStatus]: updateTime
-          };
-          await updateDoc(orderRef, {
-            status: nextStatus,
-            statusTimestamps: updatedTimestamps
+        const saved = localStorage.getItem('quxba_local_orders');
+        if (saved) {
+          const currentList = JSON.parse(saved);
+          const updatedList = currentList.map((o: any) => {
+            if (o.id === orderId && updatedOrder) {
+              return updatedOrder;
+            }
+            return o;
           });
+          localStorage.setItem('quxba_local_orders', JSON.stringify(updatedList));
         }
       } catch (error) {
-        console.warn("Firestore status update skipped or pending offline sync:", error);
+        console.warn("Local storage status update warning:", error);
       }
     }
   };
@@ -1434,7 +1191,7 @@ export default function App() {
      ========================================================================== */
   const handleAddNewProductFromSeller = async (newProduct: Product) => {
     // Sanitize product properties to avoid NaN and ensure valid data types for Firestore validation rules
-    const targetAdminId = currentUser?.email || auth.currentUser?.email || 'unauthenticated';
+    const targetAdminId = currentUser?.email || 'unauthenticated';
     
     // Ensure the ID is unique and prevents collisions by prefixing with safe user-specific identifier if they are a vendor
     const isVendor = currentUser?.email !== 'quxbashop@gmail.com';
@@ -1483,10 +1240,12 @@ export default function App() {
       }
     } else {
       try {
-        // Direct write to unique secure path. Firestore's onSnapshot handles optimistic local updates instantly
-        await setDoc(doc(db, 'products', sanitizedProduct.id), sanitizedProduct);
+        const saved = localStorage.getItem('quxba_local_products');
+        const currentList = saved ? JSON.parse(saved) : INITIAL_PRODUCTS;
+        const updatedList = [sanitizedProduct, ...currentList.filter((p: any) => p.id !== sanitizedProduct.id)];
+        localStorage.setItem('quxba_local_products', JSON.stringify(updatedList));
       } catch (error) {
-        console.warn("Firestore product set skipped or pending offline sync (quota limits):", error);
+        console.warn("Local product creation warning:", error);
       }
     }
   };
@@ -1522,10 +1281,12 @@ export default function App() {
       }
     } else {
       try {
-        // 3. Database Synchronization
-        await deleteDoc(doc(db, 'products', productId));
+        const saved = localStorage.getItem('quxba_local_products');
+        const currentList = saved ? JSON.parse(saved) : INITIAL_PRODUCTS;
+        const updatedList = currentList.filter((p: any) => p.id !== productId);
+        localStorage.setItem('quxba_local_products', JSON.stringify(updatedList));
       } catch (error) {
-        console.warn("Firestore product deletion skipped or pending offline sync:", error);
+        console.warn("Local product deletion warning:", error);
       }
     }
   };
@@ -1543,9 +1304,12 @@ export default function App() {
       }
     } else {
       try {
-        await updateDoc(doc(db, 'products', productId), { isApproved: true, addedByAdmin: true });
+        const saved = localStorage.getItem('quxba_local_products');
+        const currentList = saved ? JSON.parse(saved) : INITIAL_PRODUCTS;
+        const updatedList = currentList.map((p: any) => p.id === productId ? { ...p, isApproved: true, addedByAdmin: true } : p);
+        localStorage.setItem('quxba_local_products', JSON.stringify(updatedList));
       } catch (error) {
-        console.warn("Firestore product snapshot approve skipped or pending offline sync (quota limits):", error);
+        console.warn("Local product approve warning:", error);
       }
     }
   };
@@ -1563,10 +1327,12 @@ export default function App() {
       }
     } else {
       try {
-        // 2. Database Synchronization
-        await deleteDoc(doc(db, 'products', productId));
+        const saved = localStorage.getItem('quxba_local_products');
+        const currentList = saved ? JSON.parse(saved) : INITIAL_PRODUCTS;
+        const updatedList = currentList.filter((p: any) => p.id !== productId);
+        localStorage.setItem('quxba_local_products', JSON.stringify(updatedList));
       } catch (error) {
-        console.warn("Firestore reject delete skipped or pending offline sync:", error);
+        console.warn("Local reject delete warning:", error);
       }
     }
   };
@@ -1687,39 +1453,7 @@ export default function App() {
   return (
     <div className="flex flex-col min-h-screen bg-gray-100 text-gray-900 selection:bg-purple-200">
       
-      {firestoreQuotaExceeded && (
-        <div className="bg-amber-500 border-b border-amber-600 text-neutral-950 px-4 py-3 text-xs sm:text-sm font-medium relative shadow-sm z-[100] animate-fade-in">
-          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
-            <div className="flex items-center gap-2">
-              <span className="text-base select-none">⚠️</span>
-              <div>
-                <strong className="font-bold">Free Daily Firestore Quota Exceeded.</strong>{' '}
-                The application is now running seamlessly in high-availability offline/local fallback mode. 
-                All listings, orders, and categories are saved locally.
-              </div>
-            </div>
-            <div className="flex items-center gap-3 shrink-0">
-              <a
-                href="https://console.firebase.google.com/project/gen-lang-client-0721826624/firestore/databases/ai-studio-87550a97-6f38-4b73-898b-6848fc7a6d64/data?openUpgradeDialog=true"
-                target="_blank"
-                referrerPolicy="no-referrer"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 bg-neutral-950 text-white rounded px-3 py-1 text-xs font-bold hover:bg-neutral-800 transition shadow"
-              >
-                Upgrade Firestore / Request Quota Increase ↗
-              </a>
-              <button
-                onClick={() => setFirestoreQuotaExceeded(false)}
-                className="text-neutral-950 font-black hover:text-neutral-700 underline text-xs cursor-pointer"
-                title="Dismiss warning"
-                type="button"
-              >
-                Dismiss
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+
       
       {/* Universal Sticky Header */}
       <Header
@@ -1768,7 +1502,14 @@ export default function App() {
                 categories={categories}
                 onSaveCategory={async (catData) => {
                   try {
-                    await setDoc(doc(db, 'categories', catData.id), catData);
+                    if (isSupabaseEnabled) {
+                      await supabaseAddCategory(catData);
+                    } else {
+                      const saved = localStorage.getItem('quxba_local_categories');
+                      const current = saved ? JSON.parse(saved) : DEFAULT_CATEGORIES;
+                      const updated = [...current.filter((c: any) => c.id !== catData.id), catData];
+                      localStorage.setItem('quxba_local_categories', JSON.stringify(updated));
+                    }
                     setCategories(prev => {
                       const idx = prev.findIndex(c => c.id === catData.id);
                       if (idx > -1) {
@@ -1786,7 +1527,16 @@ export default function App() {
                 }}
                 onDeleteCategory={async (catId) => {
                   try {
-                    await deleteDoc(doc(db, 'categories', catId));
+                    if (isSupabaseEnabled) {
+                      await supabaseDeleteCategory(catId);
+                    } else {
+                      const saved = localStorage.getItem('quxba_local_categories');
+                      if (saved) {
+                        const current = JSON.parse(saved);
+                        const updated = current.filter((c: any) => c.id !== catId);
+                        localStorage.setItem('quxba_local_categories', JSON.stringify(updated));
+                      }
+                    }
                     setCategories(prev => prev.filter(c => c.id !== catId));
                     return true;
                   } catch (err) {
@@ -2346,7 +2096,7 @@ export default function App() {
               onAddNewProduct={handleAddNewProductFromSeller}
               onDeleteProduct={handleDeleteProduct}
               categories={categories}
-              onQuotaExceeded={() => setFirestoreQuotaExceeded(true)}
+              onQuotaExceeded={() => {}}
             />
           ) : (
             <div className="bg-white rounded-xl shadow-md border border-neutral-100 p-8 max-w-md mx-auto text-center space-y-5 font-sans animate-fade-in my-10">

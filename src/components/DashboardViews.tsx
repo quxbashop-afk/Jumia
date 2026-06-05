@@ -6,8 +6,6 @@ import {
 } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 import { Product, Order, SupportMessage, CartItem, ProductOption, ProductVariant, Advertisement } from '../types';
-import { db, OperationType, handleFirestoreError } from '../firebase';
-import { collection, onSnapshot, query, orderBy, setDoc, doc, deleteDoc } from 'firebase/firestore';
 import { isSupabaseEnabled, supabase, supabaseGetAdverts, supabaseAddAdvert, supabaseDeleteAdvert } from '../supabase';
 import quxbaLogo from '../assets/images/quxba_app_logo_1780449558383.png';
 
@@ -154,7 +152,15 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct, ca
     };
 
     try {
-      await setDoc(doc(db, 'categories', targetId), dataObj);
+      if (isSupabaseEnabled) {
+        await supabase.from('categories').upsert([dataObj]);
+      } else {
+        const saved = localStorage.getItem('quxba_local_categories');
+        const currentCats = saved ? JSON.parse(saved) : [];
+        const updated = [...currentCats.filter((c: any) => c.id !== dataObj.id), dataObj];
+        localStorage.setItem('quxba_local_categories', JSON.stringify(updated));
+        window.dispatchEvent(new Event('quxba_local_categories_updated'));
+      }
       setNewProdCategory(quickCatName.trim());
       setQuickCatName('');
       setShowQuickAddCat(false);
@@ -192,7 +198,15 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct, ca
     };
 
     try {
-      await setDoc(doc(db, 'categories', currentCatDetails.id), updatedCatObj);
+      if (isSupabaseEnabled) {
+        await supabase.from('categories').upsert([updatedCatObj]);
+      } else {
+        const saved = localStorage.getItem('quxba_local_categories');
+        const currentCats = saved ? JSON.parse(saved) : [];
+        const updated = [...currentCats.filter((c: any) => c.id !== updatedCatObj.id), updatedCatObj];
+        localStorage.setItem('quxba_local_categories', JSON.stringify(updated));
+        window.dispatchEvent(new Event('quxba_local_categories_updated'));
+      }
       setNewProdSubcategory(quickSubName.trim());
       setQuickSubName('');
       setShowQuickAddSub(false);
@@ -224,7 +238,15 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct, ca
     };
 
     try {
-      await setDoc(doc(db, 'categories', currentCatDetails.id), updatedCatObj);
+      if (isSupabaseEnabled) {
+        await supabase.from('categories').upsert([updatedCatObj]);
+      } else {
+        const saved = localStorage.getItem('quxba_local_categories');
+        const currentCats = saved ? JSON.parse(saved) : [];
+        const updated = [...currentCats.filter((c: any) => c.id !== updatedCatObj.id), updatedCatObj];
+        localStorage.setItem('quxba_local_categories', JSON.stringify(updated));
+        window.dispatchEvent(new Event('quxba_local_categories_updated'));
+      }
       setShowEditSubs(false);
     } catch (err: any) {
       setDeptError(err.message || 'Error saving subcategories adjustment.');
@@ -697,9 +719,25 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct, ca
           bgColor: productAdBgColor || 'purple',
           createdAt: Date.now()
         };
-        await setDoc(doc(db, 'adverts', adDocId), associatedAdData);
+        if (isSupabaseEnabled) {
+          await supabaseAddAdvert(associatedAdData);
+        } else {
+          const saved = localStorage.getItem('quxba_local_adverts');
+          const current = saved ? JSON.parse(saved) : [];
+          const updated = [...current.filter((a: any) => a.id !== adDocId), associatedAdData];
+          localStorage.setItem('quxba_local_adverts', JSON.stringify(updated));
+        }
       } else {
-        await deleteDoc(doc(db, 'adverts', adDocId));
+        if (isSupabaseEnabled) {
+          await supabaseDeleteAdvert(adDocId);
+        } else {
+          const saved = localStorage.getItem('quxba_local_adverts');
+          if (saved) {
+            const current = JSON.parse(saved);
+            const updated = current.filter((a: any) => a.id !== adDocId);
+            localStorage.setItem('quxba_local_adverts', JSON.stringify(updated));
+          }
+        }
       }
 
       onAddNewProduct(newProduct);
@@ -799,23 +837,18 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct, ca
         supabase.removeChannel(channel);
         supabase.removeChannel(altChannel);
       };
-    }
-
-    const q = query(collection(db, 'adverts'), orderBy('createdAt', 'desc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const ads: Advertisement[] = [];
-      snapshot.forEach((docSnap) => {
-        ads.push({ id: docSnap.id, ...docSnap.data() } as Advertisement);
-      });
-      setAdverts(ads);
-    }, (err) => {
-      console.warn("Firestore subscription warning for SellerDashboard (offline/quota fallback active):", err);
-      const strErr = (err && (err.message || err.code || String(err))) || '';
-      if ((strErr.toLowerCase().includes('quota') || strErr.toLowerCase().includes('exhausted')) && onQuotaExceeded) {
-        onQuotaExceeded();
+    } else {
+      try {
+        const saved = localStorage.getItem('quxba_local_adverts');
+        if (saved) {
+          setAdverts(JSON.parse(saved));
+        } else {
+          setAdverts([]);
+        }
+      } catch (e) {
+        setAdverts([]);
       }
-    });
-    return () => unsubscribe();
+    }
   }, []);
 
   const handleOpenAdForm = (ad: Advertisement | null = null) => {
@@ -874,7 +907,11 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct, ca
       if (isSupabaseEnabled) {
         await supabaseAddAdvert(adData);
       } else {
-        await setDoc(doc(db, 'adverts', adId), adData);
+        const saved = localStorage.getItem('quxba_local_adverts');
+        const current = saved ? JSON.parse(saved) : [];
+        const updated = [...current.filter((a: any) => a.id !== adData.id), adData];
+        localStorage.setItem('quxba_local_adverts', JSON.stringify(updated));
+        setAdverts(updated);
       }
       
       setAdSuccess(editingAd ? 'Advertisement banner updated successfully!' : 'New Advertisement banner published successfully!');
@@ -896,7 +933,13 @@ export function SellerDashboard({ products, onAddNewProduct, onDeleteProduct, ca
       if (isSupabaseEnabled) {
         await supabaseDeleteAdvert(adId);
       } else {
-        await deleteDoc(doc(db, 'adverts', adId));
+        const saved = localStorage.getItem('quxba_local_adverts');
+        if (saved) {
+          const current = JSON.parse(saved);
+          const updated = current.filter((a: any) => a.id !== adId);
+          localStorage.setItem('quxba_local_adverts', JSON.stringify(updated));
+          setAdverts(updated);
+        }
       }
     } catch (err) {
       console.error("Error deleting advertisement:", err);

@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Gift, Percent, Calendar, Sparkles } from 'lucide-react';
-import { db, OperationType, handleFirestoreError } from '../firebase';
-import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { isSupabaseEnabled, supabase, supabaseGetAdverts } from '../supabase';
 import { Advertisement } from '../types';
 import clearanceMegaSaleImage from '../assets/images/clearance_mega_sale_1780330738754.png';
@@ -77,23 +75,17 @@ export default function HeroCarousel({ onSelectCategory }: HeroCarouselProps) {
         .subscribe();
 
       return () => {
-        supabase.removeChannel(channel);
-        supabase.removeChannel(altChannel);
+        if (channel) supabase.removeChannel(channel);
+        if (altChannel) supabase.removeChannel(altChannel);
       };
+    } else {
+      try {
+        const saved = localStorage.getItem('quxba_local_adverts');
+        if (saved) {
+          setCustomAdverts(JSON.parse(saved));
+        }
+      } catch (e) {}
     }
-
-    const q = query(collection(db, 'adverts'), orderBy('createdAt', 'desc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const ads: Advertisement[] = [];
-      snapshot.forEach((docSnap) => {
-        ads.push({ id: docSnap.id, ...docSnap.data() } as Advertisement);
-      });
-      setCustomAdverts(ads);
-    }, (error) => {
-      console.warn("Adverts subscription warning (offline / guest permission check):", error);
-    });
-
-    return () => unsubscribe();
   }, []);
 
   const defaultSlides = [
