@@ -160,7 +160,7 @@ export default function Header({
       </div>
 
       {/* Main Header Container */}
-      <div className="max-w-7xl mx-auto px-4 md:px-8 py-3 flex flex-col md:flex-row items-center justify-between gap-4">
+      <div className="max-w-7xl mx-auto px-4 md:px-8 py-3 flex items-center justify-between gap-4 w-full">
         
         {/* Logo Section */}
         <div className="flex items-center justify-between w-full md:w-auto gap-2 md:gap-4">
@@ -171,7 +171,7 @@ export default function Header({
             <img 
               src={quxbaLogo} 
               alt="Quxba Logo" 
-              className="h-8 sm:h-10 md:h-12 w-auto object-contain transition-transform hover:scale-105"
+              className="h-8 sm:h-10 md:h-12 w-auto object-contain transition-transform hover:scale-105 mix-blend-multiply"
               referrerPolicy="no-referrer"
             />
           </div>
@@ -190,7 +190,7 @@ export default function Header({
                     setShowSuggestions(true);
                   }}
                   onFocus={() => setShowSuggestions(true)}
-                  className="w-full pl-7 pr-10 py-1.5 border border-gray-300 rounded text-xs text-gray-900 outline-none transition focus:border-[#7c3aed]"
+                  className="w-full pl-8 pr-10 py-1.5 border border-gray-300 rounded text-xs text-gray-900 outline-none transition focus:border-[#7c3aed]"
                 />
                 <Search className="absolute left-2 top-2 w-[14px] h-[14px] text-gray-400" />
               </div>
