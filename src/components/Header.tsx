@@ -171,7 +171,7 @@ export default function Header({
             <img 
               src={quxbaLogo} 
               alt="Quxba Logo" 
-              className="h-8 sm:h-10 md:h-12 w-auto object-contain transition-transform hover:scale-105 mix-blend-multiply"
+              className="h-8 sm:h-10 md:h-12 w-auto object-contain transition-transform hover:scale-105 mix-blend-multiply contrast-[1.10] brightness-[1.02]"
               referrerPolicy="no-referrer"
             />
           </div>
