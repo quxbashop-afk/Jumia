@@ -264,6 +264,33 @@ export const INITIAL_PRODUCTS: Product[] = [
       'Subcategory': 'Grains & Pasta',
       'Featured': 'No'
     }
+  },
+  {
+    id: 'prod-watch-luxury',
+    name: 'Quxba Chrono Edition Elite Smart Watch',
+    category: 'Fashion & Apparel',
+    price: 95000,
+    originalPrice: 150000,
+    discount: 36,
+    imageUrl: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&q=80',
+    rating: 4.9,
+    reviewsCount: 74,
+    description: 'Elevate your daily routine with the Quxba Chrono Edition Elite. Features dynamic fitness tracking, notification displays, advanced heart rate monitoring, and a premium titanium alloy design that blends with any outfit.',
+    stock: 25,
+    sellerId: 'quxbashop@gmail.com',
+    sellerName: 'Quxba Official Store',
+    isFlashSale: true,
+    isApproved: true,
+    brand: 'Chrono',
+    createdAt: 1717671400000,
+    specifications: {
+      'Brand': 'Chrono',
+      'Waterproof': 'IP68 Certified',
+      'Battery Life': 'Up to 10 days',
+      'Display': '1.43" AMOLED',
+      'Subcategory': 'Watches',
+      'Featured': 'Yes'
+    }
   }
 ];
 

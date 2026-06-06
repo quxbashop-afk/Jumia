@@ -1715,7 +1715,7 @@ export default function App() {
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 animate-fade-in" id="shortcut-cards">
               {[
                 { label: 'Free Delivery', emoji: '🚚', imgUrl: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=400&q=80', action: () => { setSelectedCategory('Supermarket & Groceries'); }, bg: 'bg-blue-100' },
-                { label: 'Supermarket', emoji: '🍏', action: () => { setSelectedCategory('Supermarket & Groceries'); }, bg: 'bg-green-100' },
+                { label: 'Watches', imgUrl: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=400&q=80', action: () => { setSelectedCategory('Fashion & Apparel'); }, bg: 'bg-green-100' },
                 { label: 'Phone Deals', emoji: '📱', action: () => { setSelectedCategory('Phones & Tablets'); }, bg: 'bg-red-100' },
                 { label: 'Official Stores', emoji: '🏦', action: () => { setSelectedCategory('Electronics & Appliances'); }, bg: 'bg-purple-100' },
                 { label: 'Clearance Sale', emoji: '💎', action: () => { setSelectedCategory('Computers & Accessories'); }, bg: 'bg-yellow-100' }
