@@ -404,7 +404,20 @@ export default function App() {
       const fetchSupabaseProducts = async () => {
         try {
           const prodList = await supabaseGetProducts();
-          const staleIds = ['elec-ref-001', 'elec-ac-002', 'hea-cos-008', 'daily-deal-ref-nexus'];
+          const staleIds = [
+            'elec-ref-001', 
+            'elec-ac-002', 
+            'elec-tv-003', 
+            'elec-tv-003b', 
+            'elec-tv-003c', 
+            'elec-tv-003d', 
+            'ph-sph-004', 
+            'cop-lap-005', 
+            'fas-mcl-006', 
+            'gro-pmp-007', 
+            'hea-cos-008', 
+            'daily-deal-ref-nexus'
+          ];
           
           if (prodList && prodList.length > 0) {
             // One-time deletion cleanup from Supabase tables for deleted base items
@@ -543,7 +556,20 @@ export default function App() {
         }
         
         // Filter out stale IDs from offline fallback state
-        const staleIds = ['elec-ref-001', 'elec-ac-002', 'hea-cos-008', 'daily-deal-ref-nexus'];
+        const staleIds = [
+          'elec-ref-001', 
+          'elec-ac-002', 
+          'elec-tv-003', 
+          'elec-tv-003b', 
+          'elec-tv-003c', 
+          'elec-tv-003d', 
+          'ph-sph-004', 
+          'cop-lap-005', 
+          'fas-mcl-006', 
+          'gro-pmp-007', 
+          'hea-cos-008', 
+          'daily-deal-ref-nexus'
+        ];
         currentProds = currentProds.filter((p: any) => p && p.id && !staleIds.includes(p.id));
 
         detectChanges(currentProds);
@@ -1622,13 +1648,15 @@ export default function App() {
             )}
             
             {/* Elegant Daily Deal Countdown at the top of storefront */}
-            <DailyDealCountdown
-              products={publicProducts}
-              wishlist={wishlist}
-              onAddToCart={handleAddToCart}
-              onToggleWishlist={handleToggleWishlist}
-              onSelectProduct={(p) => setSelectedProduct(p)}
-            />
+            {publicProducts.length > 0 && (
+              <DailyDealCountdown
+                products={publicProducts}
+                wishlist={wishlist}
+                onAddToCart={handleAddToCart}
+                onToggleWishlist={handleToggleWishlist}
+                onSelectProduct={(p) => setSelectedProduct(p)}
+              />
+            )}
             
             {/* Upper layouts: Category tree panel & Hero Slider */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
