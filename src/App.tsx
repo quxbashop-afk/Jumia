@@ -459,6 +459,10 @@ export default function App() {
               }
             } catch (mergeErr) {}
 
+            if (formatted.length === 0) {
+              formatted = ADMIN_RESTRICTED_PRODUCTS;
+            }
+
             detectChanges(formatted);
             setProducts(formatted);
             try {
@@ -571,6 +575,9 @@ export default function App() {
           'daily-deal-ref-nexus'
         ];
         currentProds = currentProds.filter((p: any) => p && p.id && !staleIds.includes(p.id));
+        if (currentProds.length === 0) {
+          currentProds = ADMIN_RESTRICTED_PRODUCTS;
+        }
 
         detectChanges(currentProds);
         setProducts(currentProds);
