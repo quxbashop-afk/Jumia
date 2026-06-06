@@ -298,7 +298,7 @@ export default function App() {
     const timer = setTimeout(() => {
       setIsAppLoading(false);
       sessionStorage.setItem('quxba_app_already_loaded', 'true');
-    }, 2650);
+    }, 10000);
 
     return () => clearTimeout(timer);
   }, []);
@@ -1501,29 +1501,23 @@ export default function App() {
 
   if (isAppLoading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-purple-900 via-[#581c87] to-indigo-900 text-white font-sans selection:bg-purple-500 selection:text-white" id="initial-purple-splash-loading">
-        <div className="max-w-md w-full px-6 text-center space-y-6 flex flex-col items-center">
+      <div className="flex flex-col items-center justify-center min-h-screen bg-white text-gray-900 font-sans selection:bg-purple-100 selection:text-purple-900" id="initial-purple-splash-loading">
+        <div className="max-w-md w-full px-6 text-center space-y-8 flex flex-col items-center">
           
-          {/* Main Logo Container */}
-          <div className="relative flex items-center justify-center w-28 h-28 bg-white/10 rounded-full border border-white/20 shadow-2xl backdrop-blur-md transition-transform duration-500 scale-105 overflow-hidden">
-            {/* Animating outer accent rings */}
-            <div className="absolute inset-0 rounded-full border-2 border-t-purple-400 border-r-indigo-400 animate-spin" />
-            <div className="absolute -inset-3 rounded-full border border-purple-500/20 animate-ping opacity-75" />
-            
-            {/* Real Logo Image Asset */}
-            <img src={quxbaLogo} alt="Quxba" className="w-20 h-20 object-contain rounded-full relative z-10 animate-pulse" />
+          {/* Main Logo Container - clean transparent container, no rotating rings, no harsh background circles */}
+          <div className="relative flex items-center justify-center w-48 h-48 transition-transform duration-500 scale-105">
+            {/* Real Logo Image Asset with seamless blending on white background */}
+            <img 
+              src={quxbaLogo} 
+              alt="Quxba" 
+              className="w-full h-full object-contain relative z-10 mix-blend-multiply contrast-[1.10] brightness-[1.02]" 
+              referrerPolicy="no-referrer"
+            />
           </div>
 
-          {/* Core Branding Label */}
-          <div className="space-y-2">
-            <h1 className="text-4xl font-extrabold tracking-tight bg-gradient-to-r from-purple-200 via-white to-indigo-200 bg-clip-text text-transparent">
-              QUXBA
-            </h1>
-          </div>
-
-          {/* Stepper Delivery Themed Progress Bar */}
-          <div className="w-48 bg-purple-950 h-2.5 rounded-full overflow-hidden border border-purple-800 shadow-inner">
-            <div className="bg-gradient-to-r from-purple-400 via-indigo-400 to-purple-400 h-full w-full rounded-full animate-progress" />
+          {/* Progress Bar Container - elegant light design matching the white background */}
+          <div className="w-44 bg-gray-100 h-1.5 rounded-full overflow-hidden border border-gray-100 shadow-inner">
+            <div className="bg-gradient-to-r from-[#7c3aed] to-indigo-500 h-full w-full rounded-full animate-progress" />
           </div>
 
         </div>
